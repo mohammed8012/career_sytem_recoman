@@ -1,0 +1,6 @@
+@career_sytem_recoman_HostAddress = http://localhost:5022
+
+GET {{career_sytem_recoman_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
