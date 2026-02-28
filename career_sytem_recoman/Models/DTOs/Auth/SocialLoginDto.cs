@@ -5,9 +5,9 @@ namespace career_sytem_recoman.Models.DTOs.Auth
     public class SocialLoginDto
     {
         [Required]
-        public string Provider { get; set; } // "Google", "Facebook"
+        public string Provider { get; set; } = string.Empty; // "Google", "Facebook"
 
         [Required]
-        public string Token { get; set; }
+        public string Token { get; set; } = string.Empty;
     }
 }

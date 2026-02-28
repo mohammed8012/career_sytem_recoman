@@ -5,6 +5,6 @@ namespace career_sytem_recoman.Models.DTOs.Auth
     public class ForgotPasswordDto
     {
         [Required, EmailAddress]
-        public string Email { get; set; }
+        public string Email { get; set; } = string.Empty;
     }
 }

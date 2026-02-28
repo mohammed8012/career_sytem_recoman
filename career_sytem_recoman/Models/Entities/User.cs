@@ -45,9 +45,9 @@ public partial class User
 
     public string? LogoPath { get; set; }
 
-    public virtual ICollection<Application> Applications { get; set; } = new List<Application>();
+    public virtual ICollection<Application> Applications { get; set; } = [];
 
-    public virtual ICollection<CourseTracking> CourseTrackings { get; set; } = new List<CourseTracking>();
+    public virtual ICollection<CourseTracking> CourseTrackings { get; set; } = [];
 
-    public virtual ICollection<Job> Jobs { get; set; } = new List<Job>();
+    public virtual ICollection<Job> Jobs { get; set; } = [];
 }

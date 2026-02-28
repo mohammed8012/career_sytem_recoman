@@ -9,14 +9,9 @@ namespace career_sytem_recoman.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class JobsController : ControllerBase
+    public class JobsController(IJobService jobService) : ControllerBase
     {
-        private readonly IJobService _jobService;
-
-        public JobsController(IJobService jobService)
-        {
-            _jobService = jobService;
-        }
+        private readonly IJobService _jobService = jobService;
 
         private int GetCurrentUserId()
         {

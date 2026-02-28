@@ -9,14 +9,9 @@ namespace career_sytem_recoman.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class RatingsController : ControllerBase
+    public class RatingsController(IRatingService ratingService) : ControllerBase
     {
-        private readonly IRatingService _ratingService;
-
-        public RatingsController(IRatingService ratingService)
-        {
-            _ratingService = ratingService;
-        }
+        private readonly IRatingService _ratingService = ratingService;
 
         private int GetCurrentUserId()
         {

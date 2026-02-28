@@ -1,4 +1,4 @@
-﻿using career_sytem_recoman.Models.DTOs.Job; // لإحضار JobDto و ApplicantDto إذا لزم الأمر
+﻿using career_sytem_recoman.Models.DTOs.Job;
 using career_sytem_recoman.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,15 +8,10 @@ namespace career_sytem_recoman.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Employer")] // If you have roles
-    public class EmployerController : ControllerBase
+    [Authorize(Roles = "Employer")]
+    public class EmployerController(IEmployerService employerService) : ControllerBase
     {
-        private readonly IEmployerService _employerService;
-
-        public EmployerController(IEmployerService employerService)
-        {
-            _employerService = employerService;
-        }
+        private readonly IEmployerService _employerService = employerService;
 
         private int GetCurrentUserId()
         {

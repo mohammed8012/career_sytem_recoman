@@ -5,14 +5,9 @@ namespace career_sytem_recoman.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class FiltersController : ControllerBase
+    public class FiltersController(IFilterService filterService) : ControllerBase
     {
-        private readonly IFilterService _filterService;
-
-        public FiltersController(IFilterService filterService)
-        {
-            _filterService = filterService;
-        }
+        private readonly IFilterService _filterService = filterService;
 
         [HttpGet]
         public async Task<IActionResult> GetFilterOptions()

@@ -65,7 +65,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddDbContext<JobPlatformContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Register Services
+// Register Services (بدون تكرار)
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IJobService, JobService>();
@@ -77,7 +77,8 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<IRatingService, RatingService>();
 builder.Services.AddScoped<IHomeService, HomeService>();
-builder.Services.AddScoped<IUserService, UserService>();///////////////////
+// تأكد من عدم وجود تكرار IUserService هنا (تم حذف الثاني)
+
 builder.Services.AddHttpContextAccessor();
 
 var app = builder.Build();

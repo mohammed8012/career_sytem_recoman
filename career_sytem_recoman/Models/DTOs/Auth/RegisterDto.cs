@@ -5,24 +5,23 @@ namespace career_sytem_recoman.Models.DTOs.Auth
     public class RegisterDto
     {
         [Required, MaxLength(50)]
-        public string FirstName { get; set; }
+        public string FirstName { get; set; } = string.Empty;
 
         [Required, MaxLength(50)]
-        public string LastName { get; set; }
+        public string LastName { get; set; } = string.Empty;
 
         [Required, EmailAddress, MaxLength(100)]
-        public string Email { get; set; }
+        public string Email { get; set; } = string.Empty;
 
         [Required, MinLength(6)]
-        public string Password { get; set; }
+        public string Password { get; set; } = string.Empty;
 
-        [Phone, MaxLength(20)]
+        [MaxLength(20)]
         public string? Phone { get; set; }
 
         [Required, MaxLength(20)]
-        public string UserType { get; set; } // "JobSeeker" or "Employer"
+        public string? UserType { get; set; } // ملحوظة: سيكون مطلوبًا لكن بدون قيمة افتراضية، مع علامة استفهام لأنها قد تكون null قبل التحقق
 
-        // حقول خاصة بالباحث عن عمل
         [MaxLength(100)]
         public string? Location { get; set; }
 
@@ -30,7 +29,7 @@ namespace career_sytem_recoman.Models.DTOs.Auth
         public string? Bio { get; set; }
 
         [MaxLength(500)]
-        public string? Skills { get; set; } // يمكن تخزينها كنص مفصول بفواصل
+        public string? Skills { get; set; }
 
         [Range(0, 50)]
         public int? YearsOfExperience { get; set; }
@@ -38,7 +37,6 @@ namespace career_sytem_recoman.Models.DTOs.Auth
         [MaxLength(100)]
         public string? Specialization { get; set; }
 
-        // حقول خاصة بالشركة
         [MaxLength(100)]
         public string? CompanyName { get; set; }
 
@@ -54,7 +52,7 @@ namespace career_sytem_recoman.Models.DTOs.Auth
         [MaxLength(20)]
         public string? CompanySize { get; set; }
 
-        [Url, MaxLength(255)]
+        [MaxLength(255)]
         public string? LogoPath { get; set; }
     }
 }

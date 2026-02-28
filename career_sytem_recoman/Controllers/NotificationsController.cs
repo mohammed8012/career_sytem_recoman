@@ -9,14 +9,9 @@ namespace career_sytem_recoman.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class NotificationsController : ControllerBase
+    public class NotificationsController(INotificationService notificationService) : ControllerBase
     {
-        private readonly INotificationService _notificationService;
-
-        public NotificationsController(INotificationService notificationService)
-        {
-            _notificationService = notificationService;
-        }
+        private readonly INotificationService _notificationService = notificationService;
 
         private int GetCurrentUserId()
         {

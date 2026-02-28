@@ -2,52 +2,73 @@
 using career_sytem_recoman.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
-namespace career_sytem_recoman.Controllers
+namespace career_sytem_recoman.Controllers;
+
+[Route("api/[controller]")]
+[ApiController]
+public class AuthController(IAuthService authService) : ControllerBase
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class AuthController : ControllerBase
+    private readonly IAuthService _authService = authService;
+
+    [HttpPost("register")]
+    public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
-        private readonly IAuthService _authService;
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
 
-        public AuthController(IAuthService authService)
-        {
-            _authService = authService;
-        }
-
-        [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterDto dto)
+        try
         {
             var result = await _authService.RegisterAsync(dto);
             return Ok(result);
         }
-
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDto dto)
+        catch (Exception ex)
         {
-            var result = await _authService.LoginAsync(dto);
-            return Ok(result);
+            var innerMessage = ex.InnerException?.Message ?? string.Empty;
+            if (innerMessage.Contains("CHECK constraint") || ex.Message.Contains("UserType"))
+            {
+                return BadRequest(new { error = "Invalid UserType. Allowed values are 'Employee' or 'Company'." });
+            }
+            return StatusCode(500, new { error = "An unexpected error occurred.", details = ex.Message });
         }
+    }
 
-        [HttpPost("forgot-password")]
-        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
-        {
-            var result = await _authService.ForgotPasswordAsync(dto);
-            return Ok(result);
-        }
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
 
-        [HttpPost("reset-password")]
-        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
-        {
-            var result = await _authService.ResetPasswordAsync(dto);
-            return Ok(result);
-        }
+        var result = await _authService.LoginAsync(dto);
+        return Ok(result);
+    }
 
-        [HttpPost("social-login")]
-        public async Task<IActionResult> SocialLogin([FromBody] SocialLoginDto dto)
-        {
-            var result = await _authService.SocialLoginAsync(dto);
-            return Ok(result);
-        }
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var result = await _authService.ForgotPasswordAsync(dto);
+        return Ok(result);
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var result = await _authService.ResetPasswordAsync(dto);
+        return Ok(result);
+    }
+
+    [HttpPost("social-login")]
+    public async Task<IActionResult> SocialLogin([FromBody] SocialLoginDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var result = await _authService.SocialLoginAsync(dto);
+        return Ok(result);
     }
 }

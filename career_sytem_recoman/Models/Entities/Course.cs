@@ -23,5 +23,5 @@ public partial class Course
 
     public bool? IsActive { get; set; }
 
-    public virtual ICollection<CourseTracking> CourseTrackings { get; set; } = new List<CourseTracking>();
+    public virtual ICollection<CourseTracking> CourseTrackings { get; set; } = [];
 }

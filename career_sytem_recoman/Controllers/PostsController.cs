@@ -9,14 +9,9 @@ namespace career_sytem_recoman.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class PostsController : ControllerBase
+    public class PostsController(IPostService postService) : ControllerBase
     {
-        private readonly IPostService _postService;
-
-        public PostsController(IPostService postService)
-        {
-            _postService = postService;
-        }
+        private readonly IPostService _postService = postService;
 
         private int GetCurrentUserId()
         {

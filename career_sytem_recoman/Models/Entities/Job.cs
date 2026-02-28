@@ -29,7 +29,7 @@ public partial class Job
 
     public bool? IsActive { get; set; }
 
-    public virtual ICollection<Application> Applications { get; set; } = new List<Application>();
+    public virtual ICollection<Application> Applications { get; set; } = [];
 
     public virtual User Company { get; set; } = null!;
 }
