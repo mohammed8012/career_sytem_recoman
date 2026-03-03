@@ -3,7 +3,6 @@ using career_sytem_recoman.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using System.Text.Json;
 
 namespace career_sytem_recoman.Controllers
 {
@@ -29,47 +28,12 @@ namespace career_sytem_recoman.Controllers
             return int.TryParse(userIdClaim, out var id) ? id : 0;
         }
 
-        /// <summary>
-        /// تحليل السيرة الذاتية المحفوظة للمستخدم الحالي وحفظ النتائج تلقائياً.
-        /// </summary>
         [HttpPost("analyze")]
         public async Task<IActionResult> AnalyzeSavedCv()
         {
-            if (file == null || file.Length == 0)
-                return BadRequest("No file uploaded.");
-
-            var ext = Path.GetExtension(file.FileName).ToLower();
-            if (ext != ".pdf")
-                return BadRequest("Only PDF files are allowed.");
-
-            using var stream = file.OpenReadStream();
-            var result = await _aiCvService.GetFullAnalysisAsync(stream, file.FileName);
-
-            return Ok(new
-            {
-                Analysis = result.Analysis,
-                Skills = result.Skills
-            });
-        }
-
-        /// <summary>
-        /// رفع سيرة ذاتية جديدة وتحليلها وحفظ التحليل والمهارات في قاعدة البيانات
-        /// </summary>
-        [HttpPost("extract-and-save")]
-        public async Task<IActionResult> ExtractAndSaveAnalysis(IFormFile file)
-        {
-            if (file == null || file.Length == 0)
-                return BadRequest("No file uploaded.");
-
-            var ext = Path.GetExtension(file.FileName).ToLower();
-            if (ext != ".pdf")
-                return BadRequest("Only PDF files are allowed.");
-
             var userId = GetCurrentUserId();
-            if (userId == 0)
-                return Unauthorized();
+            if (userId == 0) return Unauthorized();
 
-            // جلب السيرة المحفوظة للمستخدم
             var user = await _userService.GetProfileAsync(userId);
             if (string.IsNullOrEmpty(user.Cvpath))
                 return BadRequest("No CV found for this user. Please upload a CV first.");
@@ -80,10 +44,8 @@ namespace career_sytem_recoman.Controllers
                 return NotFound("Saved CV file not found on server.");
 
             await using var fileStream = System.IO.File.OpenRead(filePath);
-            var fileName = Path.GetFileName(filePath);
-            var result = await _aiCvService.GetFullAnalysisAsync(fileStream, fileName);
+            var result = await _aiCvService.GetFullAnalysisAsync(fileStream, Path.GetFileName(filePath));
 
-            // حفظ النتائج في قاعدة البيانات
             var updateDto = new UpdateProfileDto
             {
                 CvAnalysis = result.Analysis,
@@ -99,11 +61,6 @@ namespace career_sytem_recoman.Controllers
             });
         }
 
-        /// <summary>
-        /// رفع ملف PDF جديد وتحليله مع خيار حفظ النتائج.
-        /// </summary>
-        /// <param name="file">ملف PDF</param>
-        /// <param name="save">إذا كان true، يتم حفظ التحليل والمهارات في قاعدة البيانات (اختياري، افتراضي false)</param>
         [HttpPost("upload-and-analyze")]
         public async Task<IActionResult> UploadAndAnalyzeCv(IFormFile file, [FromForm] bool save = false)
         {
@@ -115,32 +72,19 @@ namespace career_sytem_recoman.Controllers
                 return BadRequest("Only PDF files are allowed.");
 
             var userId = GetCurrentUserId();
-            if (userId == 0)
-                return Unauthorized();
+            if (userId == 0) return Unauthorized();
 
             await using var fileStream = file.OpenReadStream();
             var result = await _aiCvService.GetFullAnalysisAsync(fileStream, file.FileName);
 
             if (save)
             {
-                webRootPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-            }
-            var filePath = Path.Combine(webRootPath, user.Cvpath.TrimStart('/'));
-            if (!System.IO.File.Exists(filePath))
-                return NotFound("CV file not found on server.");
-
-            // 3. إرسال الملف إلى خدمة الذكاء الاصطناعي
-            await using var fileStream = System.IO.File.OpenRead(filePath);
-            var fileName = Path.GetFileName(filePath);
-            var result = await _aiCvService.GetFullAnalysisAsync(fileStream, fileName);
-
-            // 4. حفظ التحليل والمهارات في قاعدة البيانات
-            var updateDto = new UpdateProfileDto
-            {
-                CvAnalysis = result.Analysis,
-                SkillsList = result.Skills
-            };
-            await _userService.UpdateProfileAsync(userId, updateDto);
+                var updateDto = new UpdateProfileDto
+                {
+                    CvAnalysis = result.Analysis,
+                    SkillsList = result.Skills
+                };
+                await _userService.UpdateProfileAsync(userId, updateDto);
             }
 
             return Ok(new
@@ -151,15 +95,11 @@ namespace career_sytem_recoman.Controllers
             });
         }
 
-        /// <summary>
-        /// جلب التحليل المحفوظ للمستخدم الحالي.
-        /// </summary>
         [HttpGet("analysis")]
         public async Task<IActionResult> GetMyAnalysis()
         {
             var userId = GetCurrentUserId();
-            if (userId == 0)
-                return Unauthorized();
+            if (userId == 0) return Unauthorized();
 
             var profile = await _userService.GetProfileAsync(userId);
             return Ok(new
@@ -169,9 +109,6 @@ namespace career_sytem_recoman.Controllers
             });
         }
 
-        /// <summary>
-        /// جلب التحليل المحفوظ لمستخدم محدد.
-        /// </summary>
         [HttpGet("analysis/{userId}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetUserAnalysis(int userId)
