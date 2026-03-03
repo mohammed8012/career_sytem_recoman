@@ -7,6 +7,7 @@ using career_sytem_recoman.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
+using System.Text.Json;
 
 namespace career_sytem_recoman.Services;
 
@@ -24,6 +25,21 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
         if (user is null)
             throw new Exception("User not found.");
 
+        // تحويل SkillsList من JSON إلى List<string>
+        List<string>? skillsList = null;
+        if (!string.IsNullOrEmpty(user.SkillsList))
+        {
+            try
+            {
+                skillsList = JsonSerializer.Deserialize<List<string>>(user.SkillsList);
+            }
+            catch
+            {
+                // إذا فشل التحويل، نتركها فارغة
+                skillsList = new List<string>();
+            }
+        }
+
         return new UserProfileDto
         {
             UserId = user.UserId,
@@ -36,7 +52,7 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
             LastName = user.LastName,
             Cvpath = user.Cvpath,
             Bio = user.Bio,
-            Skills = user.Skills,
+            Skills = user.Skills, // الحقل القديم (نص)
             YearsOfExperience = user.YearsOfExperience,
             CompanyName = user.CompanyName,
             CompanyAddress = user.CompanyAddress,
@@ -45,6 +61,9 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
             FoundedYear = user.FoundedYear,
             CompanySize = user.CompanySize,
             LogoPath = user.LogoPath,
+            // الحقول الجديدة
+            CvAnalysis = user.CvAnalysis,
+            SkillsList = skillsList ?? new List<string>(),
             Applications = user.Applications?.Select(a => new ApplicationDto
             {
                 ApplicationId = a.ApplicationId,
@@ -75,6 +94,7 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
         if (user is null)
             throw new Exception("User not found.");
 
+        // الحقول القديمة
         if (!string.IsNullOrEmpty(dto.FirstName))
             user.FirstName = dto.FirstName;
         if (!string.IsNullOrEmpty(dto.LastName))
@@ -103,6 +123,15 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
             user.CompanySize = dto.CompanySize;
         if (!string.IsNullOrEmpty(dto.LogoPath))
             user.LogoPath = dto.LogoPath;
+
+        // الحقول الجديدة
+        if (dto.CvAnalysis != null)
+            user.CvAnalysis = dto.CvAnalysis;
+
+        if (dto.SkillsList != null)
+        {
+            user.SkillsList = JsonSerializer.Serialize(dto.SkillsList);
+        }
 
         await context.SaveChangesAsync();
         return await GetProfileAsync(userId);

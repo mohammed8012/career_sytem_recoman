@@ -7,90 +7,108 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
 
-var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container.
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+namespace career_sytem_recoman
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Career System API", Version = "v1" });
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    public class Program
     {
-        Description = "JWT Authorization header using the Bearer scheme.",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
+        public static void Main(string[] args)
         {
-            new OpenApiSecurityScheme
+            var builder = WebApplication.CreateBuilder(args);
+
+            // Add services to the container.
+            builder.Services.AddControllers();
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddSwaggerGen(c =>
             {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            new string[] {}
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "Career System API", Version = "v1" });
+                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Description = "JWT Authorization header using the Bearer scheme.",
+                    Name = "Authorization",
+                    In = ParameterLocation.Header,
+                    Type = SecuritySchemeType.ApiKey,
+                    Scheme = "Bearer"
+                });
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+                        },
+                        new string[] {}
+                    }
+                });
+            });
+
+            // JWT Configuration
+            var jwtSettings = builder.Configuration.GetSection("Jwt");
+            var key = jwtSettings["Key"];
+            var issuer = jwtSettings["Issuer"];
+            var audience = jwtSettings["Audience"];
+
+            if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(issuer) || string.IsNullOrEmpty(audience))
+            {
+                throw new InvalidOperationException("JWT settings (Key, Issuer, Audience) are missing in appsettings.json");
+            }
+
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = issuer,
+                        ValidAudience = audience,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
+                    };
+                });
+
+            // Database Context
+            builder.Services.AddDbContext<JobPlatformContext>(options =>
+                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+            // Register Services
+            builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<IJobService, JobService>();
+            builder.Services.AddScoped<ICourseService, CourseService>();
+            builder.Services.AddScoped<IApplicationService, ApplicationService>();
+            builder.Services.AddScoped<IEmployerService, EmployerService>();
+            builder.Services.AddScoped<IFilterService, FilterService>();
+            builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddScoped<IPostService, PostService>();
+            builder.Services.AddScoped<IRatingService, RatingService>();
+            builder.Services.AddScoped<IHomeService, HomeService>();
+            builder.Services.AddScoped<IAiCvService, AiCvService>();
+            builder.Services.AddScoped<IRecommendationService, RecommendationService>(); // إضافة خدمة التوصيات
+
+            builder.Services.AddHttpClient();
+            builder.Services.AddHttpContextAccessor();
+
+            var app = builder.Build();
+
+            // Configure the HTTP request pipeline.
+            if (app.Environment.IsDevelopment())
+            {
+                app.UseSwagger();
+                app.UseSwaggerUI();
+            }
+
+            app.UseHttpsRedirection();
+
+            // استثناء middleware يجب وضعه بعد البناء ولكن قبل المصادقة والتفويض
+            app.UseMiddleware<career_sytem_recoman.Middleware.ExceptionMiddleware>();
+
+            app.UseAuthentication();
+            app.UseAuthorization();
+
+            app.MapControllers();
+
+            app.Run();
         }
-    });
-});
-
-// JWT Configuration
-var jwtSettings = builder.Configuration.GetSection("Jwt");
-var key = jwtSettings["Key"];
-var issuer = jwtSettings["Issuer"];
-var audience = jwtSettings["Audience"];
-
-if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(issuer) || string.IsNullOrEmpty(audience))
-{
-    throw new InvalidOperationException("JWT settings (Key, Issuer, Audience) are missing in appsettings.json");
+    }
 }
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = issuer,
-            ValidAudience = audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
-        };
-    });
-
-// Database Context
-builder.Services.AddDbContext<JobPlatformContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-// Register Services (بدون تكرار)
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IJobService, JobService>();
-builder.Services.AddScoped<ICourseService, CourseService>();
-builder.Services.AddScoped<IApplicationService, ApplicationService>();
-builder.Services.AddScoped<IEmployerService, EmployerService>();
-builder.Services.AddScoped<IFilterService, FilterService>();
-builder.Services.AddScoped<INotificationService, NotificationService>();
-builder.Services.AddScoped<IPostService, PostService>();
-builder.Services.AddScoped<IRatingService, RatingService>();
-builder.Services.AddScoped<IHomeService, HomeService>();
-// تأكد من عدم وجود تكرار IUserService هنا (تم حذف الثاني)
-
-builder.Services.AddHttpContextAccessor();
-
-var app = builder.Build();
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-app.UseHttpsRedirection();
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
-app.Run();

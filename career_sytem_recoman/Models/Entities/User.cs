@@ -44,6 +44,8 @@ public partial class User
     public string? CompanySize { get; set; }
 
     public string? LogoPath { get; set; }
+    public string? CvAnalysis { get; set; }
+    public string? SkillsList { get; set; } // ستخزن JSON array
 
     public virtual ICollection<Application> Applications { get; set; } = [];
 

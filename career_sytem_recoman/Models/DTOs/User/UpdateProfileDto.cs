@@ -16,5 +16,7 @@
         public int? FoundedYear { get; set; }
         public string? CompanySize { get; set; }
         public string? LogoPath { get; set; }
+        public string? CvAnalysis { get; set; }
+        public List<string>? SkillsList { get; set; }
     }
 }
