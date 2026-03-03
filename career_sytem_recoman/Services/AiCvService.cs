@@ -71,26 +71,26 @@ namespace career_sytem_recoman.Services
                 var itemMatches = Regex.Matches(skillsText, @"(?:^|\n)\s*[•\-\*•]\s*(.*?)(?=\n\s*[•\-\*•]|\n\n|\Z)", RegexOptions.Multiline);
 
                 if (itemMatches.Count > 0)
-                {
+            {
                     foreach (Match match in itemMatches)
-                    {
+                {
                         var skill = match.Groups[1].Value.Trim();
                         if (!string.IsNullOrWhiteSpace(skill) && skill.Length < 100)
                             skills.Add(skill);
                     }
                 }
                 else
-                {
+                    {
                     // إذا لم يعثر على تعداد، حاول تقسيم النص على الأسطر وفلترة الأسطر القصيرة
                     var lines = skillsText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
                     foreach (var line in lines)
-                    {
+                        {
                         var cleanLine = line.Trim().TrimStart('•', '-', '*', '•').Trim();
                         if (!string.IsNullOrWhiteSpace(cleanLine) && cleanLine.Length < 100 && !cleanLine.Contains(':'))
                             skills.Add(cleanLine);
                     }
-                }
-            }
+                        }
+                    }
 
             // 2. البحث في جميع أنحاء النص عن كلمات مفتاحية للمهارات (إذا لم ينجح القسم)
             if (skills.Count == 0)
