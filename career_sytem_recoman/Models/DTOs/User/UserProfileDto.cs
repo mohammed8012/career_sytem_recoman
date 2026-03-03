@@ -24,6 +24,8 @@ namespace career_sytem_recoman.Models.DTOs.User
         public int? FoundedYear { get; set; }
         public string? CompanySize { get; set; }
         public string? LogoPath { get; set; }
+        public string? CvAnalysis { get; set; }
+        public List<string>? SkillsList { get; set; }
 
         // العلاقات
         public List<ApplicationDto>? Applications { get; set; }
