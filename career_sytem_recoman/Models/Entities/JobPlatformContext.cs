@@ -26,8 +26,11 @@ public partial class JobPlatformContext : DbContext
     public virtual DbSet<Job> Jobs { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
+    public virtual DbSet<Post> Posts { get; set; }
+    public virtual DbSet<Rating> Ratings { get; set; }
+    // 👇 تم إضافة هذا السطر (جدول رموز إعادة تعيين كلمة المرور)
+    public virtual DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
 
-    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Application>(entity =>
@@ -183,6 +186,56 @@ public partial class JobPlatformContext : DbContext
             entity.Property(e => e.Specialization).HasMaxLength(100);
             entity.Property(e => e.UserType).HasMaxLength(20);
             entity.Property(e => e.YearsOfExperience).HasDefaultValue(0);
+        });
+
+        // 👇 تم إضافة تكوين جدول PasswordResetToken هنا
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Token).IsUnique();
+            entity.Property(e => e.Token).HasMaxLength(255);
+            entity.Property(e => e.ExpiryDate).HasColumnType("datetime");
+            entity.Property(e => e.IsUsed).HasDefaultValue(false);
+
+            entity.HasOne(e => e.User)
+                  .WithMany() // إذا لم يكن للمستخدم خاصية تجميعية، استخدم WithMany() فارغة
+                  .HasForeignKey(e => e.UserId)
+                  .HasConstraintName("FK_PasswordResetTokens_Users")
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<Post>(entity =>
+        {
+            entity.HasKey(e => e.PostId);
+            entity.Property(e => e.Title).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Content).IsRequired();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+
+            entity.HasOne(e => e.Company)
+                  .WithMany() // إذا أردت إضافة مجموعة Posts لـ User لاحقاً
+                  .HasForeignKey(e => e.CompanyId)
+                  .OnDelete(DeleteBehavior.Cascade)
+                  .HasConstraintName("FK_Posts_Company");
+        });
+        modelBuilder.Entity<Rating>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Value).IsRequired();
+            entity.Property(e => e.Review).HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+
+            entity.HasOne(e => e.RatedByUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.RatedByUserId)
+                  .OnDelete(DeleteBehavior.ClientSetNull)
+                  .HasConstraintName("FK_Ratings_RatedByUser");
+
+            entity.HasOne(e => e.RatedUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.RatedUserId)
+                  .OnDelete(DeleteBehavior.ClientSetNull)
+                  .HasConstraintName("FK_Ratings_RatedUser");
+
+            entity.HasIndex(e => new { e.RatedByUserId, e.RatedUserId }).IsUnique();
         });
 
         OnModelCreatingPartial(modelBuilder);

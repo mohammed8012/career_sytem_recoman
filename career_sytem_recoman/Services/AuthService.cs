@@ -5,8 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
-using BCrypt.Net;
+using BCrypt.Net; // تأكد من وجود هذه
 
 namespace career_sytem_recoman.Services;
 
@@ -17,7 +18,6 @@ public class AuthService(JobPlatformContext context, IConfiguration configuratio
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
     {
-        // التحقق من وجود المستخدم
         var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
         if (existingUser is not null)
             throw new Exception("User already exists.");
@@ -27,8 +27,7 @@ public class AuthService(JobPlatformContext context, IConfiguration configuratio
             FirstName = dto.FirstName,
             LastName = dto.LastName,
             Email = dto.Email,
-            // استخدام الاسم المؤهل بالكامل لتجنب أي التباس
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password), // استخدام الاسم المؤهل
             Phone = dto.Phone,
             UserType = dto.UserType,
             Location = dto.Location,
@@ -53,11 +52,10 @@ public class AuthService(JobPlatformContext context, IConfiguration configuratio
         {
             Token = token,
             UserId = user.UserId,
-            Email = user.Email ?? string.Empty,
+            Email = user.Email!,
             FirstName = user.FirstName ?? string.Empty,
             LastName = user.LastName ?? string.Empty,
-            UserType = user.UserType ?? string.Empty,
-            Message = null // تأكد من أن Message معرفة كـ string? في AuthResponseDto
+            UserType = user.UserType ?? string.Empty
         };
     }
 
@@ -72,21 +70,74 @@ public class AuthService(JobPlatformContext context, IConfiguration configuratio
         {
             Token = token,
             UserId = user.UserId,
-            Email = user.Email ?? string.Empty,
+            Email = user.Email!,
             FirstName = user.FirstName ?? string.Empty,
             LastName = user.LastName ?? string.Empty,
-            UserType = user.UserType ?? string.Empty,
-            Message = null
+            UserType = user.UserType ?? string.Empty
         };
     }
 
-    public Task<AuthResponseDto> ForgotPasswordAsync(ForgotPasswordDto dto) => throw new NotImplementedException();
-    public Task<AuthResponseDto> ResetPasswordAsync(ResetPasswordDto dto) => throw new NotImplementedException();
-    public Task<AuthResponseDto> SocialLoginAsync(SocialLoginDto dto) => throw new NotImplementedException();
+    public async Task<AuthResponseDto> ForgotPasswordAsync(ForgotPasswordDto dto)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+        if (user is null)
+            throw new Exception("User not found.");
+
+        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))
+                               .Replace("/", "_").Replace("+", "-");
+
+        var resetToken = new PasswordResetToken
+        {
+            UserId = user.UserId,
+            Token = token,
+            ExpiryDate = DateTime.UtcNow.AddHours(1),
+            IsUsed = false
+        };
+        _context.PasswordResetTokens.Add(resetToken);
+        await _context.SaveChangesAsync();
+
+        return new AuthResponseDto
+        {
+            Message = "Password reset token generated successfully.",
+            Token = token
+        };
+    }
+
+    public async Task<AuthResponseDto> ResetPasswordAsync(ResetPasswordDto dto)
+    {
+        var resetToken = await _context.PasswordResetTokens
+            .Include(rt => rt.User)
+            .FirstOrDefaultAsync(rt => rt.Token == dto.Token && !rt.IsUsed && rt.ExpiryDate > DateTime.UtcNow);
+
+        if (resetToken is null)
+            throw new Exception("Invalid or expired token.");
+
+        var user = resetToken.User;
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        resetToken.IsUsed = true;
+
+        await _context.SaveChangesAsync();
+
+        var jwtToken = GenerateJwtToken(user);
+        return new AuthResponseDto
+        {
+            Message = "Password reset successfully.",
+            Token = jwtToken,
+            UserId = user.UserId,
+            Email = user.Email!,
+            FirstName = user.FirstName ?? string.Empty,
+            LastName = user.LastName ?? string.Empty,
+            UserType = user.UserType ?? string.Empty
+        };
+    }
+
+    public Task<AuthResponseDto> SocialLoginAsync(SocialLoginDto dto)
+    {
+        throw new NotImplementedException("Social login not implemented.");
+    }
 
     private string GenerateJwtToken(User user)
     {
-        // استخدام الطريقة الحديثة لفحص null
         ArgumentNullException.ThrowIfNull(user);
 
         var keyString = _configuration["Jwt:Key"];
@@ -96,18 +147,17 @@ public class AuthService(JobPlatformContext context, IConfiguration configuratio
         if (string.IsNullOrEmpty(keyString) || string.IsNullOrEmpty(issuer) || string.IsNullOrEmpty(audience))
             throw new InvalidOperationException("JWT settings are not configured.");
 
-        // تبسيط تهيئة القائمة باستخدام [] أو target-typed new
-        List<Claim> claims =
-        [
-            new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-            new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
-            new Claim(ClaimTypes.Role, user.UserType ?? string.Empty)
-        ];
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+            new(ClaimTypes.Email, user.Email ?? string.Empty),
+            new(ClaimTypes.Role, user.UserType ?? string.Empty)
+        };
 
         if (!string.IsNullOrEmpty(user.FirstName))
-            claims.Add(new Claim(ClaimTypes.GivenName, user.FirstName));
+            claims.Add(new(ClaimTypes.GivenName, user.FirstName));
         if (!string.IsNullOrEmpty(user.LastName))
-            claims.Add(new Claim(ClaimTypes.Surname, user.LastName));
+            claims.Add(new(ClaimTypes.Surname, user.LastName));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyString));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

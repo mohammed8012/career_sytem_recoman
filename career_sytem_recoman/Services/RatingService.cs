@@ -3,60 +3,72 @@ using career_sytem_recoman.Models.Entities;
 using career_sytem_recoman.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
-namespace career_sytem_recoman.Services;
-
-public class RatingService : IRatingService
+namespace career_sytem_recoman.Services
 {
-    private readonly JobPlatformContext _context;
-
-    public RatingService(JobPlatformContext context)
+    public class RatingService : IRatingService
     {
-        _context = context;
-    }
+        private readonly JobPlatformContext _context;
 
-    public async Task<object> CreateRatingAsync(CreateRatingDto dto, int ratedByUserId)
-    {
-        // التحقق من عدم تقييم المستخدم لنفسه
-        if (dto.RatedUserId == ratedByUserId)
-            throw new Exception("You cannot rate yourself.");
+        public RatingService(JobPlatformContext context)
+        {
+            _context = context;
+        }
 
-        // البحث عن تتبع كورس للمستخدم (أو أي علاقة أخرى) يمكن إرفاق التقييم به
-        // هنا سنستخدم CourseTracking كجدول للتقييمات، ونفترض أن userId هو المقيَّم (RatedUserId)
-        // و ratedByUserId هو المُقيِّم (RatedByUserId) – لكن جدول CourseTracking لا يحتوي على هذه الحقول.
-        // لذا هذا الحل مؤقت وسيحتاج إلى إعادة هيكلة عند وجود جدول تقييمات منفصل.
+        public async Task<object> CreateRatingAsync(CreateRatingDto dto, int ratedByUserId)
+        {
+            // منع تقييم النفس
+            if (dto.RatedUserId == ratedByUserId)
+                throw new Exception("You cannot rate yourself.");
 
-        // كحل مؤقت، نبحث عن أي كورس تم تتبعه من قبل المستخدم المقيَّم ونضيف التقييم لأول واحد
-        var courseTracking = await _context.CourseTrackings
-            .FirstOrDefaultAsync(ct => ct.UserId == dto.RatedUserId);
+            // التحقق من وجود المستخدم المقيَّم
+            var ratedUser = await _context.Users.FindAsync(dto.RatedUserId);
+            if (ratedUser == null)
+                throw new Exception("User to rate not found.");
 
-        if (courseTracking == null)
-            throw new Exception("No course tracking found for this user to rate.");
+            // التحقق من عدم وجود تقييم سابق من نفس المُقيِّم لنفس المستخدم
+            var existing = await _context.Ratings
+                .FirstOrDefaultAsync(r => r.RatedByUserId == ratedByUserId && r.RatedUserId == dto.RatedUserId);
+            if (existing != null)
+                throw new Exception("You have already rated this user.");
 
-        // تحديث التقييم في CourseTracking (هذا ليس مثالياً، لكنه يعمل مؤقتاً)
-        courseTracking.Rating = dto.Value;
-        courseTracking.Review = dto.Review;
-
-        await _context.SaveChangesAsync();
-
-        return new { Message = "Rating submitted successfully." };
-    }
-
-    public async Task<List<UserRatingDto>> GetRatingsForUserAsync(int userId)
-    {
-        // جلب التقييمات من CourseTracking للمستخدم المطلوب
-        var ratings = await _context.CourseTrackings
-            .Where(ct => ct.UserId == userId && ct.Rating != null)
-            .Select(ct => new UserRatingDto
+            var rating = new Rating
             {
-                Id = ct.TrackId,
-                Value = ct.Rating ?? 0,
-                Review = ct.Review,
-                RatedByUserId = ct.UserId, // هنا المشكلة: ليس لدينا المُقيِّم
-                RatedByUserName = "Unknown", // مؤقت
-                CreatedAt = ct.LastAccessed ?? DateTime.UtcNow
-            })
-            .ToListAsync();
+                RatedByUserId = ratedByUserId,
+                RatedUserId = dto.RatedUserId,
+                Value = dto.Value,
+                Review = dto.Review,
+                CreatedAt = DateTime.UtcNow
+            };
 
-        return ratings;
+            _context.Ratings.Add(rating);
+            await _context.SaveChangesAsync();
+
+            return new { Message = "Rating submitted successfully." };
+        }
+
+        public async Task<List<UserRatingDto>> GetRatingsForUserAsync(int userId)
+        {
+            // التحقق من وجود المستخدم (اختياري)
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+                throw new Exception("User not found."); // أو إرجاع قائمة فارغة
+
+            var ratings = await _context.Ratings
+                .Where(r => r.RatedUserId == userId)
+                .Include(r => r.RatedByUser)
+                .OrderByDescending(r => r.CreatedAt)
+                .Select(r => new UserRatingDto
+                {
+                    Id = r.Id,
+                    Value = r.Value,
+                    Review = r.Review,
+                    RatedByUserId = r.RatedByUserId,
+                    RatedByUserName = r.RatedByUser.FirstName + " " + r.RatedByUser.LastName,
+                    CreatedAt = r.CreatedAt
+                })
+                .ToListAsync();
+
+            return ratings;
+        }
     }
 }
