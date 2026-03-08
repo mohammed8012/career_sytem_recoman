@@ -1,55 +1,40 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace career_sytem_recoman.Models.Entities;
-
-public partial class User
+namespace career_sytem_recoman.Models.Entities
 {
-    public int UserId { get; set; }
+    public partial class User
+    {
+        public int UserId { get; set; }
+        public string UserType { get; set; } = null!;
+        public string Email { get; set; } = null!;
+        public string PasswordHash { get; set; } = null!;
+        public string? Phone { get; set; }
+        public string? Location { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Cvpath { get; set; }
+        public string? Bio { get; set; }
+        public string? Skills { get; set; }
+        public int? YearsOfExperience { get; set; }
+        public string? CompanyName { get; set; }
+        public string? CompanyAddress { get; set; }
+        public string? Specialization { get; set; }
+        public string? FieldsAvailable { get; set; }
+        public int? FoundedYear { get; set; }
+        public string? CompanySize { get; set; }
+        public string? LogoPath { get; set; }
+        // الحقول الجديدة للصور
+        public string? ProfileImagePath { get; set; }
+        public string? CoverImagePath { get; set; }
+        // الحقول الخاصة بتحليل السيرة الذاتية (تم إضافتها سابقًا)
+        public string? CvAnalysis { get; set; }
+        public string? SkillsList { get; set; }
 
-    public string UserType { get; set; } = null!;
-
-    public string Email { get; set; } = null!;
-
-    public string PasswordHash { get; set; } = null!;
-
-    public string? Phone { get; set; }
-
-    public string? Location { get; set; }
-
-    public DateTime? CreatedAt { get; set; }
-
-    public string? FirstName { get; set; }
-
-    public string? LastName { get; set; }
-
-    public string? Cvpath { get; set; }
-
-    public string? Bio { get; set; }
-
-    public string? Skills { get; set; }
-
-    public int? YearsOfExperience { get; set; }
-
-    public string? CompanyName { get; set; }
-
-    public string? CompanyAddress { get; set; }
-
-    public string? Specialization { get; set; }
-
-    public string? FieldsAvailable { get; set; }
-
-    public int? FoundedYear { get; set; }
-
-    public string? CompanySize { get; set; }
-
-    public string? LogoPath { get; set; }
-    public string? CvAnalysis { get; set; }
-    public string? SkillsList { get; set; } // ستخزن JSON array
-
-    public virtual ICollection<Application> Applications { get; set; } = [];
-
-    public virtual ICollection<CourseTracking> CourseTrackings { get; set; } = [];
-
-    public virtual ICollection<Job> Jobs { get; set; } = [];
+        // العلاقات
+        public virtual ICollection<Application> Applications { get; set; } = new List<Application>();
+        public virtual ICollection<CourseTracking> CourseTrackings { get; set; } = new List<CourseTracking>();
+        public virtual ICollection<Job> Jobs { get; set; } = new List<Job>();
+    }
 }

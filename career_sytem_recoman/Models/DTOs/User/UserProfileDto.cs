@@ -1,5 +1,6 @@
 ﻿using career_sytem_recoman.Models.DTOs.Application;
 using career_sytem_recoman.Models.DTOs.Course;
+using System.Collections.Generic;
 
 namespace career_sytem_recoman.Models.DTOs.User
 {
@@ -24,6 +25,10 @@ namespace career_sytem_recoman.Models.DTOs.User
         public int? FoundedYear { get; set; }
         public string? CompanySize { get; set; }
         public string? LogoPath { get; set; }
+        // الحقول الجديدة للصور
+        public string? ProfileImagePath { get; set; }
+        public string? CoverImagePath { get; set; }
+        // الحقول الخاصة بتحليل السيرة الذاتية
         public string? CvAnalysis { get; set; }
         public List<string>? SkillsList { get; set; }
 

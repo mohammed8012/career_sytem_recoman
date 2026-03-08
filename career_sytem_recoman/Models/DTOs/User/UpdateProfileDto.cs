@@ -16,6 +16,10 @@
         public int? FoundedYear { get; set; }
         public string? CompanySize { get; set; }
         public string? LogoPath { get; set; }
+        // الحقول الجديدة للصور
+        public string? ProfileImagePath { get; set; }
+        public string? CoverImagePath { get; set; }
+        // الحقول الخاصة بتحليل السيرة الذاتية
         public string? CvAnalysis { get; set; }
         public List<string>? SkillsList { get; set; }
     }

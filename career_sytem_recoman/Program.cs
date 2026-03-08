@@ -18,9 +18,11 @@ namespace career_sytem_recoman
             // Add services to the container.
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
+
             builder.Services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "Career System API", Version = "v1" });
+
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     Description = "JWT Authorization header using the Bearer scheme.",
@@ -29,12 +31,17 @@ namespace career_sytem_recoman
                     Type = SecuritySchemeType.ApiKey,
                     Scheme = "Bearer"
                 });
+
                 c.AddSecurityRequirement(new OpenApiSecurityRequirement
                 {
                     {
                         new OpenApiSecurityScheme
                         {
-                            Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
                         },
                         new string[] {}
                     }
@@ -84,29 +91,29 @@ namespace career_sytem_recoman
             builder.Services.AddScoped<IRatingService, RatingService>();
             builder.Services.AddScoped<IHomeService, HomeService>();
             builder.Services.AddScoped<IAiCvService, AiCvService>();
-            builder.Services.AddScoped<IRecommendationService, RecommendationService>(); // إضافة خدمة التوصيات
+            builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 
             builder.Services.AddHttpClient();
             builder.Services.AddHttpContextAccessor();
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
+            // تشغيل Swagger في كل البيئات (Development + Production)
+            app.UseSwagger();
+            app.UseSwaggerUI();
 
             app.UseHttpsRedirection();
 
-            // استثناء middleware يجب وضعه بعد البناء ولكن قبل المصادقة والتفويض
+            // Exception Middleware
             app.UseMiddleware<career_sytem_recoman.Middleware.ExceptionMiddleware>();
 
             app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllers();
+
+            // Endpoint بسيط لمعرفة أن الـ API يعمل
+            app.MapGet("/", () => Results.Ok("Career System API is running"));
 
             app.Run();
         }

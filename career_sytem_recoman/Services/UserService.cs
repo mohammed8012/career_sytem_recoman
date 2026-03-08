@@ -11,11 +11,20 @@ using System.Text.Json;
 
 namespace career_sytem_recoman.Services;
 
-public class UserService(JobPlatformContext context, IWebHostEnvironment env) : IUserService
+public class UserService : IUserService
 {
+    private readonly JobPlatformContext _context;
+    private readonly IWebHostEnvironment _env;
+
+    public UserService(JobPlatformContext context, IWebHostEnvironment env)
+    {
+        _context = context;
+        _env = env;
+    }
+
     public async Task<UserProfileDto> GetProfileAsync(int userId)
     {
-        var user = await context.Users
+        var user = await _context.Users
             .Include(u => u.Applications)
                 .ThenInclude(a => a.Job)
             .Include(u => u.CourseTrackings)
@@ -35,7 +44,6 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
             }
             catch
             {
-                // إذا فشل التحويل، نتركها فارغة
                 skillsList = new List<string>();
             }
         }
@@ -52,7 +60,7 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
             LastName = user.LastName,
             Cvpath = user.Cvpath,
             Bio = user.Bio,
-            Skills = user.Skills, // الحقل القديم (نص)
+            Skills = user.Skills,
             YearsOfExperience = user.YearsOfExperience,
             CompanyName = user.CompanyName,
             CompanyAddress = user.CompanyAddress,
@@ -61,7 +69,8 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
             FoundedYear = user.FoundedYear,
             CompanySize = user.CompanySize,
             LogoPath = user.LogoPath,
-            // الحقول الجديدة
+            ProfileImagePath = user.ProfileImagePath,
+            CoverImagePath = user.CoverImagePath,
             CvAnalysis = user.CvAnalysis,
             SkillsList = skillsList ?? new List<string>(),
             Applications = user.Applications?.Select(a => new ApplicationDto
@@ -73,7 +82,7 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
                 Status = a.Status,
                 AppliedAt = a.AppliedAt,
                 CompanyNotes = a.CompanyNotes
-            }).ToList() ?? [],
+            }).ToList() ?? new List<ApplicationDto>(),
             CourseTrackings = user.CourseTrackings?.Select(ct => new CourseTrackingDto
             {
                 TrackId = ct.TrackId,
@@ -84,17 +93,16 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
                 LastAccessed = ct.LastAccessed,
                 Rating = ct.Rating,
                 Review = ct.Review
-            }).ToList() ?? []
+            }).ToList() ?? new List<CourseTrackingDto>()
         };
     }
 
     public async Task<UserProfileDto> UpdateProfileAsync(int userId, UpdateProfileDto dto)
     {
-        var user = await context.Users.FindAsync(userId);
+        var user = await _context.Users.FindAsync(userId);
         if (user is null)
             throw new Exception("User not found.");
 
-        // الحقول القديمة
         if (!string.IsNullOrEmpty(dto.FirstName))
             user.FirstName = dto.FirstName;
         if (!string.IsNullOrEmpty(dto.LastName))
@@ -123,17 +131,20 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
             user.CompanySize = dto.CompanySize;
         if (!string.IsNullOrEmpty(dto.LogoPath))
             user.LogoPath = dto.LogoPath;
-
-        // الحقول الجديدة
-        if (dto.CvAnalysis != null)
+        // الحقول الجديدة للصور
+        if (!string.IsNullOrEmpty(dto.ProfileImagePath))
+            user.ProfileImagePath = dto.ProfileImagePath;
+        if (!string.IsNullOrEmpty(dto.CoverImagePath))
+            user.CoverImagePath = dto.CoverImagePath;
+        // الحقول الخاصة بتحليل السيرة الذاتية
+        if (!string.IsNullOrEmpty(dto.CvAnalysis))
             user.CvAnalysis = dto.CvAnalysis;
-
         if (dto.SkillsList != null)
         {
             user.SkillsList = JsonSerializer.Serialize(dto.SkillsList);
         }
 
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
         return await GetProfileAsync(userId);
     }
 
@@ -147,13 +158,7 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
         if (!allowedExtensions.Any(e => string.Equals(e, ext, StringComparison.OrdinalIgnoreCase)))
             throw new Exception("Only PDF and DOCX files are allowed.");
 
-        // التأكد من وجود مسار تخزين صالح
-        string webRootPath = env.WebRootPath;
-        if (string.IsNullOrEmpty(webRootPath))
-        {
-            webRootPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-        }
-
+        string webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
         var uploadsFolder = Path.Combine(webRootPath, "uploads", "cvs");
         if (!Directory.Exists(uploadsFolder))
             Directory.CreateDirectory(uploadsFolder);
@@ -166,7 +171,7 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
             await file.CopyToAsync(stream);
         }
 
-        var user = await context.Users.FindAsync(userId);
+        var user = await _context.Users.FindAsync(userId);
         if (user is null)
             throw new Exception("User not found.");
 
@@ -179,20 +184,16 @@ public class UserService(JobPlatformContext context, IWebHostEnvironment env) : 
         }
 
         user.Cvpath = $"/uploads/cvs/{fileName}";
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         return user.Cvpath;
     }
 
     public async Task<(Stream Stream, string ContentType, string FileName)> GetCvFileAsync(int userId)
     {
-        string webRootPath = env.WebRootPath;
-        if (string.IsNullOrEmpty(webRootPath))
-        {
-            webRootPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-        }
+        string webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
 
-        var user = await context.Users.FindAsync(userId);
+        var user = await _context.Users.FindAsync(userId);
         if (user is null || string.IsNullOrEmpty(user.Cvpath))
             throw new FileNotFoundException("CV not found.");
 
