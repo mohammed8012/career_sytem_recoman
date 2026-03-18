@@ -74,9 +74,18 @@ namespace career_sytem_recoman.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            await using var fileStream = file.OpenReadStream();
-            var result = await _aiCvService.GetFullAnalysisAsync(fileStream, file.FileName);
+            // 1. رفع الملف إلى مجلد uploads/cvs والحصول على المسار (CvPath)
+            var cvPath = await _userService.UploadCvAsync(userId, file);
 
+            // 2. بناء المسار الكامل للملف المرفوع
+            string webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var filePath = Path.Combine(webRootPath, cvPath.TrimStart('/'));
+
+            // 3. قراءة الملف من القرص وتحليله
+            await using var fileStream = System.IO.File.OpenRead(filePath);
+            var result = await _aiCvService.GetFullAnalysisAsync(fileStream, Path.GetFileName(filePath));
+
+            // 4. حفظ التحليل والمهارات إذا طلب المستخدم
             if (save)
             {
                 var updateDto = new UpdateProfileDto
@@ -89,7 +98,7 @@ namespace career_sytem_recoman.Controllers
 
             return Ok(new
             {
-                Message = save ? "File analyzed and saved." : "File analyzed (not saved).",
+                Message = save ? "File uploaded, analyzed and saved." : "File uploaded and analyzed (not saved).",
                 Analysis = result.Analysis,
                 Skills = result.Skills
             });

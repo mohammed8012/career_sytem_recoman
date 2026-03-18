@@ -27,6 +27,8 @@ namespace career_sytem_recoman.Models.Entities
         public string? LogoPath { get; set; }
         // الحقول الجديدة للصور
         public string? ProfileImagePath { get; set; }
+        public string? Provider { get; set; }
+        public string? ProviderId { get; set; }
         public string? CoverImagePath { get; set; }
         // الحقول الخاصة بتحليل السيرة الذاتية (تم إضافتها سابقًا)
         public string? CvAnalysis { get; set; }
