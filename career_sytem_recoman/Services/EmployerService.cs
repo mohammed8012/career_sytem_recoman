@@ -3,6 +3,7 @@ using career_sytem_recoman.Models.Entities;
 using career_sytem_recoman.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
+using System.Text.Json; // 👈 أضف هذا السطر
 
 namespace career_sytem_recoman.Services;
 
@@ -38,24 +39,57 @@ public class EmployerService(JobPlatformContext context, IWebHostEnvironment env
 
     public async Task<List<ApplicantDto>> GetApplicantsForJobAsync(int jobId, int employerId)
     {
+        // التحقق من أن الوظيفة تخص صاحب العمل
         var job = await _context.Jobs.FindAsync(jobId);
         if (job == null || job.CompanyId != employerId)
             throw new UnauthorizedAccessException();
 
-        var applicants = await _context.Applications
+        // جلب المتقدمين مع بياناتهم الكاملة
+        var applications = await _context.Applications
             .Where(a => a.JobId == jobId)
             .Include(a => a.User)
-            .Select(a => new ApplicantDto
-            {
-                UserId = a.UserId,
-                FullName = a.User.FirstName + " " + a.User.LastName,
-                Email = a.User.Email,
-                Phone = a.User.Phone,
-                AppliedAt = a.AppliedAt ?? DateTime.UtcNow,
-                CvPath = a.User.Cvpath,
-                Status = a.Status
-            })
             .ToListAsync();
+
+        // نص الوظيفة للمقارنة (العنوان، الوصف، المتطلبات)
+        var jobText = (job.JobTitle + " " + job.Description + " " + job.Requirements).ToLower();
+
+        var applicants = new List<ApplicantDto>();
+
+        foreach (var app in applications)
+        {
+            var user = app.User;
+
+            // استخراج مهارات المستخدم من SkillsList (JSON array)
+            List<string> userSkills = new List<string>();
+            if (!string.IsNullOrEmpty(user.SkillsList))
+            {
+                try
+                {
+                    userSkills = JsonSerializer.Deserialize<List<string>>(user.SkillsList) ?? new List<string>();
+                }
+                catch { }
+            }
+
+            // حساب عدد المهارات المشتركة
+            int matchCount = userSkills.Count(skill => jobText.Contains(skill.ToLower()));
+
+            // حساب النسبة المئوية (إذا كان لدى المستخدم مهارات)
+            double matchScore = userSkills.Any()
+                ? Math.Round((matchCount / (double)userSkills.Count) * 100, 0)
+                : 0;
+
+            applicants.Add(new ApplicantDto
+            {
+                UserId = user.UserId,
+                FullName = (user.FirstName + " " + user.LastName).Trim(),
+                Email = user.Email,
+                Phone = user.Phone,
+                AppliedAt = app.AppliedAt ?? DateTime.UtcNow,
+                CvPath = user.Cvpath,
+                Status = app.Status,
+                MatchScore = matchScore
+            });
+        }
 
         return applicants;
     }

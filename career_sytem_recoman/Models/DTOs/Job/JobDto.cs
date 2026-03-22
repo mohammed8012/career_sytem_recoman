@@ -26,5 +26,7 @@ namespace career_sytem_recoman.Models.DTOs.Job
 
         // عدد المتقدمين (محسوب)
         public int ApplicantsCount => Applications?.Count ?? 0;
+        // درجة المطابقة (للتوصيات) كنسبة مئوية
+        public double MatchScore { get; set; } = 0;
     }
 }

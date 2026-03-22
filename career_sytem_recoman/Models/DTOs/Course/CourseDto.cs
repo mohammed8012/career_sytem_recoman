@@ -14,5 +14,7 @@
 
         // معلومات التتبع للمستخدم الحالي
         public CourseTrackingDto? Tracking { get; set; }
+        // درجة المطابقة (للتوصيات) كنسبة مئوية
+        public double MatchScore { get; set; } = 0;
     }
 }

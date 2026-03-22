@@ -9,5 +9,7 @@
         public DateTime AppliedAt { get; set; }
         public string? CvPath { get; set; }
         public string? Status { get; set; }
+        // النسبة المئوية للمطابقة بين مهارات المتقدم ومتطلبات الوظيفة
+        public double MatchScore { get; set; } = 0;
     }
 }

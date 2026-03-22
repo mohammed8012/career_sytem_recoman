@@ -34,17 +34,34 @@ namespace career_sytem_recoman.Services
             if (userSkills.Count == 0)
                 return new List<JobDto>();
 
-            var allJobs = await _jobService.GetJobsAsync(new JobFilterDto { PageSize = 100 }); // جلب عدد كبير للتصفية
+            var allJobs = await _jobService.GetJobsAsync(new JobFilterDto { PageSize = 100 });
 
             var scoredJobs = allJobs
                 .Select(job => new
                 {
                     Job = job,
-                    Score = CalculateJobMatchScore(job, userSkills)
+                    Score = CalculateJobMatchScore(job, userSkills) // عدد المهارات المشتركة
                 })
                 .Where(x => x.Score > 0)
                 .OrderByDescending(x => x.Score)
-                .Select(x => x.Job)
+                .Select(x => new JobDto
+                {
+                    JobId = x.Job.JobId,
+                    CompanyId = x.Job.CompanyId,
+                    JobTitle = x.Job.JobTitle,
+                    JobCategory = x.Job.JobCategory,
+                    Description = x.Job.Description,
+                    Requirements = x.Job.Requirements,
+                    Location = x.Job.Location,
+                    JobType = x.Job.JobType,
+                    MinExperience = x.Job.MinExperience,
+                    CreatedAt = x.Job.CreatedAt,
+                    ExpiryDate = x.Job.ExpiryDate,
+                    IsActive = x.Job.IsActive,
+                    Company = x.Job.Company,
+                    Applications = x.Job.Applications,
+                    MatchScore = Math.Round((x.Score / (double)userSkills.Count) * 100, 0) // نسبة مئوية
+                })
                 .ToList();
 
             return scoredJobs;
@@ -68,7 +85,20 @@ namespace career_sytem_recoman.Services
                 })
                 .Where(x => x.Score > 0)
                 .OrderByDescending(x => x.Score)
-                .Select(x => x.Course)
+                .Select(x => new CourseDto
+                {
+                    CourseId = x.Course.CourseId,
+                    Title = x.Course.Title,
+                    Description = x.Course.Description,
+                    Category = x.Course.Category,
+                    ImageUrl = x.Course.ImageUrl,
+                    Provider = x.Course.Provider,
+                    CourseUrl = x.Course.CourseUrl,
+                    CreatedAt = x.Course.CreatedAt,
+                    IsActive = x.Course.IsActive,
+                    Tracking = x.Course.Tracking,
+                    MatchScore = Math.Round((x.Score / (double)userSkills.Count) * 100, 0) // نسبة مئوية
+                })
                 .ToList();
 
             return scoredCourses;
@@ -76,18 +106,12 @@ namespace career_sytem_recoman.Services
 
         private int CalculateJobMatchScore(JobDto job, List<string> userSkills)
         {
-            if (job.JobTitle == null && job.Description == null && job.Requirements == null)
-                return 0;
-
             var textToSearch = (job.JobTitle + " " + job.Description + " " + job.Requirements).ToLower();
             return userSkills.Count(skill => textToSearch.Contains(skill.ToLower()));
         }
 
         private int CalculateCourseMatchScore(CourseDto course, List<string> userSkills)
         {
-            if (course.Title == null && course.Description == null)
-                return 0;
-
             var textToSearch = (course.Title + " " + course.Description).ToLower();
             return userSkills.Count(skill => textToSearch.Contains(skill.ToLower()));
         }
