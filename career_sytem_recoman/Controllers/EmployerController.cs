@@ -8,10 +8,15 @@ namespace career_sytem_recoman.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Employer")]
-    public class EmployerController(IEmployerService employerService) : ControllerBase
+    [Authorize(Roles = "Company")]   // ← تم التعديل هنا
+    public class EmployerController : ControllerBase
     {
-        private readonly IEmployerService _employerService = employerService;
+        private readonly IEmployerService _employerService;
+
+        public EmployerController(IEmployerService employerService)
+        {
+            _employerService = employerService;
+        }
 
         private int GetCurrentUserId()
         {

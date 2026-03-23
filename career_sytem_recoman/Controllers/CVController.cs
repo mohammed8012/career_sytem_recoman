@@ -28,6 +28,9 @@ namespace career_sytem_recoman.Controllers
             return int.TryParse(userIdClaim, out var id) ? id : 0;
         }
 
+        /// <summary>
+        /// تحليل السيرة الذاتية المحفوظة للمستخدم الحالي وحفظ النتائج تلقائياً.
+        /// </summary>
         [HttpPost("analyze")]
         public async Task<IActionResult> AnalyzeSavedCv()
         {
@@ -61,6 +64,11 @@ namespace career_sytem_recoman.Controllers
             });
         }
 
+        /// <summary>
+        /// رفع ملف PDF وتحليله مع خيار حفظ النتائج.
+        /// </summary>
+        /// <param name="file">ملف PDF</param>
+        /// <param name="save">إذا كان true، يتم حفظ التحليل والمهارات في قاعدة البيانات (اختياري، افتراضي false)</param>
         [HttpPost("upload-and-analyze")]
         public async Task<IActionResult> UploadAndAnalyzeCv(IFormFile file, [FromForm] bool save = false)
         {
@@ -74,18 +82,14 @@ namespace career_sytem_recoman.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            // 1. رفع الملف إلى مجلد uploads/cvs والحصول على المسار (CvPath)
+            // 1. تحليل الملف مباشرة من التدفق (بدون حفظ أولاً)
+            await using var fileStream = file.OpenReadStream();
+            var result = await _aiCvService.GetFullAnalysisAsync(fileStream, file.FileName);
+
+            // 2. حفظ الملف على القرص وتحديث CvPath في قاعدة البيانات
             var cvPath = await _userService.UploadCvAsync(userId, file);
 
-            // 2. بناء المسار الكامل للملف المرفوع
-            string webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-            var filePath = Path.Combine(webRootPath, cvPath.TrimStart('/'));
-
-            // 3. قراءة الملف من القرص وتحليله
-            await using var fileStream = System.IO.File.OpenRead(filePath);
-            var result = await _aiCvService.GetFullAnalysisAsync(fileStream, Path.GetFileName(filePath));
-
-            // 4. حفظ التحليل والمهارات إذا طلب المستخدم
+            // 3. حفظ التحليل والمهارات إذا طلب المستخدم
             if (save)
             {
                 var updateDto = new UpdateProfileDto

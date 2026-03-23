@@ -3,14 +3,20 @@ using career_sytem_recoman.Models.Entities;
 using career_sytem_recoman.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
-using System.Text.Json; // 👈 أضف هذا السطر
+using System.Text.Json;
 
 namespace career_sytem_recoman.Services;
 
-public class EmployerService(JobPlatformContext context, IWebHostEnvironment env) : IEmployerService
+public class EmployerService : IEmployerService
 {
-    private readonly JobPlatformContext _context = context;
-    private readonly IWebHostEnvironment _env = env;
+    private readonly JobPlatformContext _context;
+    private readonly IWebHostEnvironment _env;
+
+    public EmployerService(JobPlatformContext context, IWebHostEnvironment env)
+    {
+        _context = context;
+        _env = env;
+    }
 
     public async Task<List<JobDto>> GetJobsByEmployerAsync(int employerId)
     {
@@ -39,59 +45,58 @@ public class EmployerService(JobPlatformContext context, IWebHostEnvironment env
 
     public async Task<List<ApplicantDto>> GetApplicantsForJobAsync(int jobId, int employerId)
     {
-        // التحقق من أن الوظيفة تخص صاحب العمل
         var job = await _context.Jobs.FindAsync(jobId);
         if (job == null || job.CompanyId != employerId)
             throw new UnauthorizedAccessException();
 
-        // جلب المتقدمين مع بياناتهم الكاملة
-        var applications = await _context.Applications
+        var applicants = await _context.Applications
             .Where(a => a.JobId == jobId)
             .Include(a => a.User)
             .ToListAsync();
 
-        // نص الوظيفة للمقارنة (العنوان، الوصف، المتطلبات)
-        var jobText = (job.JobTitle + " " + job.Description + " " + job.Requirements).ToLower();
-
-        var applicants = new List<ApplicantDto>();
-
-        foreach (var app in applications)
+        var result = new List<ApplicantDto>();
+        foreach (var app in applicants)
         {
             var user = app.User;
 
-            // استخراج مهارات المستخدم من SkillsList (JSON array)
-            List<string> userSkills = new List<string>();
+            // استخراج المهارات من JSON
+            List<string> skills = new List<string>();
             if (!string.IsNullOrEmpty(user.SkillsList))
             {
                 try
                 {
-                    userSkills = JsonSerializer.Deserialize<List<string>>(user.SkillsList) ?? new List<string>();
+                    skills = JsonSerializer.Deserialize<List<string>>(user.SkillsList) ?? new List<string>();
                 }
                 catch { }
             }
 
-            // حساب عدد المهارات المشتركة
-            int matchCount = userSkills.Count(skill => jobText.Contains(skill.ToLower()));
+            // حساب نسبة المطابقة
+            double matchScore = 0;
+            if (skills.Any())
+            {
+                var jobText = (job.JobTitle + " " + job.Description + " " + job.Requirements).ToLower();
+                int matchCount = skills.Count(skill => jobText.Contains(skill.ToLower()));
+                matchScore = Math.Round((matchCount / (double)skills.Count) * 100, 0);
+            }
 
-            // حساب النسبة المئوية (إذا كان لدى المستخدم مهارات)
-            double matchScore = userSkills.Any()
-                ? Math.Round((matchCount / (double)userSkills.Count) * 100, 0)
-                : 0;
-
-            applicants.Add(new ApplicantDto
+            result.Add(new ApplicantDto
             {
                 UserId = user.UserId,
                 FullName = (user.FirstName + " " + user.LastName).Trim(),
                 Email = user.Email,
                 Phone = user.Phone,
+                Location = user.Location,                       // ✅ إضافة
+                YearsOfExperience = user.YearsOfExperience,     // ✅ إضافة
+                Bio = user.Bio,                                 // ✅ إضافة
                 AppliedAt = app.AppliedAt ?? DateTime.UtcNow,
                 CvPath = user.Cvpath,
                 Status = app.Status,
-                MatchScore = matchScore
+                MatchScore = matchScore,
+                SkillsList = skills
             });
         }
 
-        return applicants;
+        return result;
     }
 
     public async Task<(Stream Stream, string ContentType, string FileName)> GetApplicantCvAsync(int applicantId, int employerId)
