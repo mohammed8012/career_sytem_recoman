@@ -7,13 +7,21 @@ using Microsoft.EntityFrameworkCore;
 
 namespace career_sytem_recoman.Services;
 
-public class ApplicationService(JobPlatformContext context) : IApplicationService
+public class ApplicationService : IApplicationService
 {
-    private readonly JobPlatformContext _context = context;
+    private readonly JobPlatformContext _context;
+    private readonly INotificationService _notificationService;
 
+    public ApplicationService(JobPlatformContext context, INotificationService notificationService)
+    {
+        _context = context;
+        _notificationService = notificationService;
+    }
+
+    // ========== 1. التقديم على وظيفة ==========
     public async Task<ApplicationDto> ApplyAsync(int userId, CreateApplicationDto dto)
     {
-        // Check if already applied
+        // منع التقديم المكرر
         var existing = await _context.Applications
             .FirstOrDefaultAsync(a => a.UserId == userId && a.JobId == dto.JobId);
         if (existing is not null)
@@ -35,7 +43,8 @@ public class ApplicationService(JobPlatformContext context) : IApplicationServic
         return await GetApplicationAsync(application.ApplicationId);
     }
 
-    public async Task<ApplicationDto> GetApplicationAsync(int applicationId)
+    // ========== 2. جلب تفاصيل تقديم معين ==========
+    private async Task<ApplicationDto> GetApplicationAsync(int applicationId)
     {
         var application = await _context.Applications
             .Include(a => a.User)
@@ -74,6 +83,7 @@ public class ApplicationService(JobPlatformContext context) : IApplicationServic
         };
     }
 
+    // ========== 3. جلب تقديمات المستخدم (للباحث) ==========
     public async Task<List<ApplicationDto>> GetUserApplicationsAsync(int userId)
     {
         var applications = await _context.Applications
@@ -82,7 +92,7 @@ public class ApplicationService(JobPlatformContext context) : IApplicationServic
             .OrderByDescending(a => a.AppliedAt)
             .ToListAsync();
 
-        return [.. applications.Select(a => new ApplicationDto
+        return applications.Select(a => new ApplicationDto
         {
             ApplicationId = a.ApplicationId,
             UserId = a.UserId,
@@ -99,12 +109,13 @@ public class ApplicationService(JobPlatformContext context) : IApplicationServic
                 Location = a.Job.Location,
                 JobType = a.Job.JobType
             }
-        })];
+        }).ToList();
     }
 
+    // ========== 4. جلب المتقدمين لوظيفة (لصاحب العمل) ==========
     public async Task<List<ApplicationDto>> GetJobApplicationsAsync(int jobId, int employerId)
     {
-        // Check if the job belongs to the employer
+        // التأكد من أن الوظيفة تخص صاحب العمل
         var job = await _context.Jobs.FindAsync(jobId);
         if (job is null || job.CompanyId != employerId)
             throw new UnauthorizedAccessException();
@@ -115,7 +126,7 @@ public class ApplicationService(JobPlatformContext context) : IApplicationServic
             .OrderByDescending(a => a.AppliedAt)
             .ToListAsync();
 
-        return [.. applications.Select(a => new ApplicationDto
+        return applications.Select(a => new ApplicationDto
         {
             ApplicationId = a.ApplicationId,
             UserId = a.UserId,
@@ -133,24 +144,45 @@ public class ApplicationService(JobPlatformContext context) : IApplicationServic
                 Phone = a.User.Phone,
                 Cvpath = a.User.Cvpath
             }
-        })];
+        }).ToList();
     }
 
+    // ========== 5. تحديث حالة التقديم (لصاحب العمل) ==========
     public async Task<ApplicationDto> UpdateApplicationStatusAsync(int applicationId, UpdateApplicationStatusDto dto, int employerId)
     {
         var application = await _context.Applications
             .Include(a => a.Job)
+                .ThenInclude(j => j.Company)   // لتحميل بيانات الشركة
+            .Include(a => a.User)
             .FirstOrDefaultAsync(a => a.ApplicationId == applicationId);
 
         if (application is null)
             throw new Exception("Application not found.");
 
-        // Check if the employer owns the job
         if (application.Job.CompanyId != employerId)
             throw new UnauthorizedAccessException();
 
+        // تحديث الحالة
         application.Status = dto.Status;
         await _context.SaveChangesAsync();
+
+        // إعداد نص الإشعار للمتقدم
+        var statusText = dto.Status == "Accepted" ? "قبول" : "رفض";
+        var jobTitle = application.Job.JobTitle;
+        var company = application.Job.Company;
+        var companyName = company.CompanyName ?? (company.FirstName + " " + company.LastName);
+        var companyEmail = company.Email;
+        var companyPhone = company.Phone ?? "غير متوفر";
+
+        var notificationContent = $"تم {statusText} طلبك للوظيفة '{jobTitle}'.";
+
+        if (dto.Status == "Accepted")
+        {
+            notificationContent += $"\n\nيمكنك التواصل مع الشركة ({companyName}) عبر:\nالبريد الإلكتروني: {companyEmail}\nرقم الهاتف: {companyPhone}";
+        }
+
+        // إرسال الإشعار للمتقدم
+        await _notificationService.SendNotificationAsync(application.UserId, "تحديث حالة التقديم", notificationContent);
 
         return await GetApplicationAsync(applicationId);
     }

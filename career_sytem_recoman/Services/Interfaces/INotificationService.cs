@@ -7,5 +7,6 @@ namespace career_sytem_recoman.Services.Interfaces
         Task<List<NotificationDto>> GetNotificationsAsync(int userId);
         Task MarkAsReadAsync(int notificationId, int userId);
         Task DeleteNotificationAsync(int notificationId, int userId);
+        Task SendNotificationAsync(int userId, string title, string content);
     }
 }
