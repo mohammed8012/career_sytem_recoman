@@ -4,6 +4,7 @@ using career_sytem_recoman.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
 using System.Text.Json;
+using System.Text.RegularExpressions;   // ← أضف هذا
 
 namespace career_sytem_recoman.Services;
 
@@ -59,16 +60,33 @@ public class EmployerService : IEmployerService
         {
             var user = app.User;
 
-            // استخراج المهارات من JSON
-            List<string> skills = new List<string>();
+            // دمج المهارات من SkillsList (JSON) و Skills (نص قديم)
+            var skillsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // 1. من SkillsList (المصفوفة الجديدة)
             if (!string.IsNullOrEmpty(user.SkillsList))
             {
                 try
                 {
-                    skills = JsonSerializer.Deserialize<List<string>>(user.SkillsList) ?? new List<string>();
+                    var list = JsonSerializer.Deserialize<List<string>>(user.SkillsList);
+                    if (list != null)
+                        foreach (var s in list)
+                            skillsSet.Add(s.Trim());
                 }
                 catch { }
             }
+
+            // 2. من Skills (النص القديم) - تقسيم على فواصل، مسافات، أسطر جديدة
+            if (!string.IsNullOrEmpty(user.Skills))
+            {
+                var rawSkills = Regex.Split(user.Skills, @"[,\n\r\t]+")
+                                     .Select(s => s.Trim())
+                                     .Where(s => s.Length > 0 && s.Length < 50);
+                foreach (var s in rawSkills)
+                    skillsSet.Add(s);
+            }
+
+            var skills = skillsSet.ToList();
 
             // حساب نسبة المطابقة
             double matchScore = 0;
@@ -85,14 +103,14 @@ public class EmployerService : IEmployerService
                 FullName = (user.FirstName + " " + user.LastName).Trim(),
                 Email = user.Email,
                 Phone = user.Phone,
-                Location = user.Location,                       // ✅ إضافة
-                YearsOfExperience = user.YearsOfExperience,     // ✅ إضافة
-                Bio = user.Bio,                                 // ✅ إضافة
+                Location = user.Location,
+                YearsOfExperience = user.YearsOfExperience,
+                Bio = user.Bio,
                 AppliedAt = app.AppliedAt ?? DateTime.UtcNow,
                 CvPath = user.Cvpath,
                 Status = app.Status,
                 MatchScore = matchScore,
-                SkillsList = skills
+                SkillsList = skills   // القائمة الموحدة (مصفوفة)
             });
         }
 

@@ -3,7 +3,7 @@ using career_sytem_recoman.Models.DTOs.Job;
 using career_sytem_recoman.Models.Entities;
 using career_sytem_recoman.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace career_sytem_recoman.Services
 {
@@ -26,13 +26,45 @@ namespace career_sytem_recoman.Services
             _courseService = courseService;
         }
 
-        public async Task<List<JobDto>> GetRecommendedJobsAsync(int userId)
+        /// <summary>
+        /// جلب قائمة مهارات موحدة للمستخدم من كلا الحقلين: SkillsList (JSON) و Skills (نص قديم)
+        /// </summary>
+        private async Task<List<string>> GetCombinedSkillsAsync(int userId)
         {
             var user = await _userService.GetProfileAsync(userId);
-            var userSkills = user.SkillsList ?? new List<string>();
+            var skillsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            // إضافة مهارات من SkillsList (المصفوفة الجديدة)
+            if (user.SkillsList != null && user.SkillsList.Any())
+            {
+                foreach (var skill in user.SkillsList)
+                    skillsSet.Add(skill.Trim());
+            }
+
+            // إضافة مهارات من Skills (النص القديم) - نقسم على فواصل أو مسافات أو أسطر
+            if (!string.IsNullOrWhiteSpace(user.Skills))
+            {
+                // تقسيم النص على فواصل، مسافات، أسطر جديدة، أو علامات ترقيم
+                var rawSkills = Regex.Split(user.Skills, @"[,\n\r\t]+")
+                                     .Select(s => s.Trim())
+                                     .Where(s => s.Length > 0 && s.Length < 50);
+                foreach (var skill in rawSkills)
+                    skillsSet.Add(skill);
+            }
+
+            return skillsSet.ToList();
+        }
+
+        public async Task<List<JobDto>> GetRecommendedJobsAsync(int userId)
+        {
+            var userSkills = await GetCombinedSkillsAsync(userId);
+
+            // إذا لم تكن هناك مهارات، نرجع آخر 5 وظائف نشطة
             if (userSkills.Count == 0)
-                return new List<JobDto>();
+            {
+                var defaultJobs = await _jobService.GetJobsAsync(new JobFilterDto { PageSize = 5 });
+                return defaultJobs;
+            }
 
             var allJobs = await _jobService.GetJobsAsync(new JobFilterDto { PageSize = 100 });
 
@@ -40,7 +72,7 @@ namespace career_sytem_recoman.Services
                 .Select(job => new
                 {
                     Job = job,
-                    Score = CalculateJobMatchScore(job, userSkills) // عدد المهارات المشتركة
+                    Score = CalculateJobMatchScore(job, userSkills)
                 })
                 .Where(x => x.Score > 0)
                 .OrderByDescending(x => x.Score)
@@ -58,22 +90,28 @@ namespace career_sytem_recoman.Services
                     CreatedAt = x.Job.CreatedAt,
                     ExpiryDate = x.Job.ExpiryDate,
                     IsActive = x.Job.IsActive,
-                    Company = x.Job.Company,
-                    Applications = x.Job.Applications,
-                    MatchScore = Math.Round((x.Score / (double)userSkills.Count) * 100, 0) // نسبة مئوية
+                    MatchScore = Math.Round((x.Score / (double)userSkills.Count) * 100, 0)
                 })
                 .ToList();
+
+            if (scoredJobs.Count == 0)
+            {
+                var defaultJobs = await _jobService.GetJobsAsync(new JobFilterDto { PageSize = 5 });
+                return defaultJobs;
+            }
 
             return scoredJobs;
         }
 
         public async Task<List<CourseDto>> GetRecommendedCoursesAsync(int userId)
         {
-            var user = await _userService.GetProfileAsync(userId);
-            var userSkills = user.SkillsList ?? new List<string>();
+            var userSkills = await GetCombinedSkillsAsync(userId);
 
             if (userSkills.Count == 0)
-                return new List<CourseDto>();
+            {
+                var defaultCourses = await _courseService.GetCoursesAsync(new CourseFilterDto { PageSize = 5 });
+                return defaultCourses;
+            }
 
             var allCourses = await _courseService.GetCoursesAsync(new CourseFilterDto { PageSize = 100 });
 
@@ -96,10 +134,15 @@ namespace career_sytem_recoman.Services
                     CourseUrl = x.Course.CourseUrl,
                     CreatedAt = x.Course.CreatedAt,
                     IsActive = x.Course.IsActive,
-                    Tracking = x.Course.Tracking,
-                    MatchScore = Math.Round((x.Score / (double)userSkills.Count) * 100, 0) // نسبة مئوية
+                    MatchScore = Math.Round((x.Score / (double)userSkills.Count) * 100, 0)
                 })
                 .ToList();
+
+            if (scoredCourses.Count == 0)
+            {
+                var defaultCourses = await _courseService.GetCoursesAsync(new CourseFilterDto { PageSize = 5 });
+                return defaultCourses;
+            }
 
             return scoredCourses;
         }
