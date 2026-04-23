@@ -31,6 +31,8 @@ public partial class JobPlatformContext : DbContext
     // 👇 تم إضافة هذا السطر (جدول رموز إعادة تعيين كلمة المرور)
     public virtual DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
 
+    public virtual DbSet<SavedJob> SavedJobs { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Application>(entity =>
@@ -236,6 +238,20 @@ public partial class JobPlatformContext : DbContext
                   .HasConstraintName("FK_Ratings_RatedUser");
 
             entity.HasIndex(e => new { e.RatedByUserId, e.RatedUserId }).IsUnique();
+        });
+        modelBuilder.Entity<SavedJob>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.UserId, e.JobId }).IsUnique();
+            entity.Property(e => e.SavedAt).HasDefaultValueSql("GETDATE()");
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Job)
+                  .WithMany()
+                  .HasForeignKey(e => e.JobId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         OnModelCreatingPartial(modelBuilder);

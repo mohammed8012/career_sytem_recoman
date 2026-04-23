@@ -34,7 +34,6 @@ public class UserService : IUserService
         if (user is null)
             throw new Exception("User not found.");
 
-        // تحويل SkillsList من JSON إلى List<string>
         List<string>? skillsList = null;
         if (!string.IsNullOrEmpty(user.SkillsList))
         {
@@ -72,6 +71,7 @@ public class UserService : IUserService
             ProfileImagePath = user.ProfileImagePath,
             CoverImagePath = user.CoverImagePath,
             CvAnalysis = user.CvAnalysis,
+            JobDescription = user.JobDescription,
             SkillsList = skillsList ?? new List<string>(),
             Applications = user.Applications?.Select(a => new ApplicationDto
             {
@@ -103,46 +103,25 @@ public class UserService : IUserService
         if (user is null)
             throw new Exception("User not found.");
 
-        if (!string.IsNullOrEmpty(dto.FirstName))
-            user.FirstName = dto.FirstName;
-        if (!string.IsNullOrEmpty(dto.LastName))
-            user.LastName = dto.LastName;
-        if (!string.IsNullOrEmpty(dto.Phone))
-            user.Phone = dto.Phone;
-        if (!string.IsNullOrEmpty(dto.Location))
-            user.Location = dto.Location;
-        if (!string.IsNullOrEmpty(dto.Bio))
-            user.Bio = dto.Bio;
-        if (!string.IsNullOrEmpty(dto.Skills))
-            user.Skills = dto.Skills;
-        if (dto.YearsOfExperience.HasValue)
-            user.YearsOfExperience = dto.YearsOfExperience;
-        if (!string.IsNullOrEmpty(dto.CompanyName))
-            user.CompanyName = dto.CompanyName;
-        if (!string.IsNullOrEmpty(dto.CompanyAddress))
-            user.CompanyAddress = dto.CompanyAddress;
-        if (!string.IsNullOrEmpty(dto.Specialization))
-            user.Specialization = dto.Specialization;
-        if (!string.IsNullOrEmpty(dto.FieldsAvailable))
-            user.FieldsAvailable = dto.FieldsAvailable;
-        if (dto.FoundedYear.HasValue)
-            user.FoundedYear = dto.FoundedYear;
-        if (!string.IsNullOrEmpty(dto.CompanySize))
-            user.CompanySize = dto.CompanySize;
-        if (!string.IsNullOrEmpty(dto.LogoPath))
-            user.LogoPath = dto.LogoPath;
-        // الحقول الجديدة للصور
-        if (!string.IsNullOrEmpty(dto.ProfileImagePath))
-            user.ProfileImagePath = dto.ProfileImagePath;
-        if (!string.IsNullOrEmpty(dto.CoverImagePath))
-            user.CoverImagePath = dto.CoverImagePath;
-        // الحقول الخاصة بتحليل السيرة الذاتية
-        if (!string.IsNullOrEmpty(dto.CvAnalysis))
-            user.CvAnalysis = dto.CvAnalysis;
-        if (dto.SkillsList != null)
-        {
-            user.SkillsList = JsonSerializer.Serialize(dto.SkillsList);
-        }
+        if (!string.IsNullOrEmpty(dto.FirstName)) user.FirstName = dto.FirstName;
+        if (!string.IsNullOrEmpty(dto.LastName)) user.LastName = dto.LastName;
+        if (!string.IsNullOrEmpty(dto.Phone)) user.Phone = dto.Phone;
+        if (!string.IsNullOrEmpty(dto.Location)) user.Location = dto.Location;
+        if (!string.IsNullOrEmpty(dto.Bio)) user.Bio = dto.Bio;
+        if (!string.IsNullOrEmpty(dto.Skills)) user.Skills = dto.Skills;
+        if (dto.YearsOfExperience.HasValue) user.YearsOfExperience = dto.YearsOfExperience;
+        if (!string.IsNullOrEmpty(dto.CompanyName)) user.CompanyName = dto.CompanyName;
+        if (!string.IsNullOrEmpty(dto.CompanyAddress)) user.CompanyAddress = dto.CompanyAddress;
+        if (!string.IsNullOrEmpty(dto.Specialization)) user.Specialization = dto.Specialization;
+        if (!string.IsNullOrEmpty(dto.FieldsAvailable)) user.FieldsAvailable = dto.FieldsAvailable;
+        if (dto.FoundedYear.HasValue) user.FoundedYear = dto.FoundedYear;
+        if (!string.IsNullOrEmpty(dto.CompanySize)) user.CompanySize = dto.CompanySize;
+        if (!string.IsNullOrEmpty(dto.LogoPath)) user.LogoPath = dto.LogoPath;
+        if (!string.IsNullOrEmpty(dto.ProfileImagePath)) user.ProfileImagePath = dto.ProfileImagePath;
+        if (!string.IsNullOrEmpty(dto.CoverImagePath)) user.CoverImagePath = dto.CoverImagePath;
+        if (!string.IsNullOrEmpty(dto.CvAnalysis)) user.CvAnalysis = dto.CvAnalysis;
+        if (dto.SkillsList != null) user.SkillsList = JsonSerializer.Serialize(dto.SkillsList);
+        if (!string.IsNullOrEmpty(dto.JobDescription)) user.JobDescription = dto.JobDescription;
 
         await _context.SaveChangesAsync();
         return await GetProfileAsync(userId);
@@ -150,9 +129,7 @@ public class UserService : IUserService
 
     public async Task<string> UploadCvAsync(int userId, IFormFile file)
     {
-        if (file is null || file.Length == 0)
-            throw new Exception("No file uploaded.");
-
+        if (file is null || file.Length == 0) throw new Exception("No file uploaded.");
         var allowedExtensions = new[] { ".pdf", ".docx" };
         var ext = Path.GetExtension(file.FileName);
         if (!allowedExtensions.Any(e => string.Equals(e, ext, StringComparison.OrdinalIgnoreCase)))
@@ -160,8 +137,7 @@ public class UserService : IUserService
 
         string webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
         var uploadsFolder = Path.Combine(webRootPath, "uploads", "cvs");
-        if (!Directory.Exists(uploadsFolder))
-            Directory.CreateDirectory(uploadsFolder);
+        if (!Directory.Exists(uploadsFolder)) Directory.CreateDirectory(uploadsFolder);
 
         var fileName = $"{userId}_{Guid.NewGuid()}{ext}";
         var filePath = Path.Combine(uploadsFolder, fileName);
@@ -172,15 +148,12 @@ public class UserService : IUserService
         }
 
         var user = await _context.Users.FindAsync(userId);
-        if (user is null)
-            throw new Exception("User not found.");
+        if (user is null) throw new Exception("User not found.");
 
-        // حذف السيرة الذاتية القديمة إذا وجدت
         if (!string.IsNullOrEmpty(user.Cvpath))
         {
             var oldPath = Path.Combine(webRootPath, user.Cvpath.TrimStart('/'));
-            if (File.Exists(oldPath))
-                File.Delete(oldPath);
+            if (File.Exists(oldPath)) File.Delete(oldPath);
         }
 
         user.Cvpath = $"/uploads/cvs/{fileName}";
@@ -194,17 +167,13 @@ public class UserService : IUserService
         string webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
 
         var user = await _context.Users.FindAsync(userId);
-        if (user is null || string.IsNullOrEmpty(user.Cvpath))
-            throw new FileNotFoundException("CV not found.");
+        if (user is null || string.IsNullOrEmpty(user.Cvpath)) throw new FileNotFoundException("CV not found.");
 
         var filePath = Path.Combine(webRootPath, user.Cvpath.TrimStart('/'));
-        if (!File.Exists(filePath))
-            throw new FileNotFoundException("CV file does not exist on server.");
+        if (!File.Exists(filePath)) throw new FileNotFoundException("CV file does not exist on server.");
 
         var stream = File.OpenRead(filePath);
-        var contentType = string.Equals(Path.GetExtension(filePath), ".pdf", StringComparison.OrdinalIgnoreCase)
-            ? "application/pdf"
-            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        var contentType = string.Equals(Path.GetExtension(filePath), ".pdf", StringComparison.OrdinalIgnoreCase) ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
         var fileName = Path.GetFileName(filePath);
 
         return (stream, contentType, fileName);

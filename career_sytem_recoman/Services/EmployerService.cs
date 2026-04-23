@@ -4,7 +4,7 @@ using career_sytem_recoman.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
 using System.Text.Json;
-using System.Text.RegularExpressions;   // ← أضف هذا
+using System.Text.RegularExpressions;
 
 namespace career_sytem_recoman.Services;
 
@@ -60,32 +60,25 @@ public class EmployerService : IEmployerService
         {
             var user = app.User;
 
-            // دمج المهارات من SkillsList (JSON) و Skills (نص قديم)
+            // دمج المهارات من SkillsList و Skills
             var skillsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            // 1. من SkillsList (المصفوفة الجديدة)
             if (!string.IsNullOrEmpty(user.SkillsList))
             {
                 try
                 {
                     var list = JsonSerializer.Deserialize<List<string>>(user.SkillsList);
                     if (list != null)
-                        foreach (var s in list)
-                            skillsSet.Add(s.Trim());
+                        foreach (var s in list) skillsSet.Add(s.Trim());
                 }
                 catch { }
             }
-
-            // 2. من Skills (النص القديم) - تقسيم على فواصل، مسافات، أسطر جديدة
             if (!string.IsNullOrEmpty(user.Skills))
             {
                 var rawSkills = Regex.Split(user.Skills, @"[,\n\r\t]+")
                                      .Select(s => s.Trim())
                                      .Where(s => s.Length > 0 && s.Length < 50);
-                foreach (var s in rawSkills)
-                    skillsSet.Add(s);
+                foreach (var s in rawSkills) skillsSet.Add(s);
             }
-
             var skills = skillsSet.ToList();
 
             // حساب نسبة المطابقة
@@ -110,11 +103,12 @@ public class EmployerService : IEmployerService
                 CvPath = user.Cvpath,
                 Status = app.Status,
                 MatchScore = matchScore,
-                SkillsList = skills   // القائمة الموحدة (مصفوفة)
+                SkillsList = skills
             });
         }
 
-        return result;
+        // ترتيب المتقدمين تنازلياً حسب نسبة المطابقة (الأعلى أولاً)
+        return result.OrderByDescending(a => a.MatchScore).ToList();
     }
 
     public async Task<(Stream Stream, string ContentType, string FileName)> GetApplicantCvAsync(int applicantId, int employerId)

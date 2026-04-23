@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using career_sytem_recoman.Models.DTOs.CV;
@@ -13,7 +14,7 @@ namespace career_sytem_recoman.Services
         private readonly string _aiServiceUrl;
         private readonly ILogger<AiCvService> _logger;
 
-        // قائمة المهارات المعروفة مع تصنيفها
+        // قائمة المهارات المعروفة (يمكنك إضافة المزيد حسب الحاجة)
         private static readonly Dictionary<string, string> KnownSkills = new(StringComparer.OrdinalIgnoreCase)
         {
             // لغات البرمجة
@@ -63,6 +64,8 @@ namespace career_sytem_recoman.Services
             { "CSS", "Frontend" },
             { "Bootstrap", "Frontend" },
             { "Tailwind", "Frontend" },
+            { "Agile", "Methodology" },
+            { "Scrum", "Methodology" }
         };
 
         public AiCvService(HttpClient httpClient, IConfiguration configuration, ILogger<AiCvService> logger)
@@ -70,17 +73,19 @@ namespace career_sytem_recoman.Services
             _httpClient = httpClient;
             _logger = logger;
             _aiServiceUrl = configuration["AiService:Url"]
-                ?? throw new InvalidOperationException("AiService:Url is missing in configuration.");
+                ?? "https://ahmhnmh-resumeanalyzer.hf.space/analyze";
         }
 
-        public async Task<CvAnalysisResultDto> GetFullAnalysisAsync(Stream fileStream, string fileName)
+        public async Task<CvAnalysisResultDto> GetFullAnalysisAsync(Stream fileStream, string fileName, string jobDescription)
         {
             try
             {
+                // إرسال الطلب كـ multipart/form-data
                 using var formData = new MultipartFormDataContent();
                 using var fileContent = new StreamContent(fileStream);
                 fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
                 formData.Add(fileContent, "file", fileName);
+                formData.Add(new StringContent(jobDescription ?? ""), "job_description");
 
                 var response = await _httpClient.PostAsync(_aiServiceUrl, formData);
                 var responseBody = await response.Content.ReadAsStringAsync();
@@ -88,12 +93,24 @@ namespace career_sytem_recoman.Services
 
                 response.EnsureSuccessStatusCode();
 
-                var result = JsonSerializer.Deserialize<AnalysisResponse>(responseBody,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                // استخراج حقل "analysis" من الاستجابة
+                string analysisText = "No analysis returned.";
+                using var doc = JsonDocument.Parse(responseBody);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("analysis", out var analysisProp))
+                {
+                    analysisText = analysisProp.GetString() ?? "No analysis returned.";
+                }
+                else if (root.TryGetProperty("output", out var outputProp))
+                {
+                    analysisText = outputProp.GetString() ?? "No analysis returned.";
+                }
+                else if (root.TryGetProperty("data", out var dataArray) && dataArray.ValueKind == JsonValueKind.Array && dataArray.GetArrayLength() > 0)
+                {
+                    analysisText = dataArray[0].GetString() ?? "No analysis returned.";
+                }
 
-                var analysisText = result?.Analysis ?? "No analysis returned.";
                 var skills = ExtractSkillsFromAnalysis(analysisText);
-
                 return new CvAnalysisResultDto
                 {
                     Analysis = analysisText,
@@ -103,29 +120,43 @@ namespace career_sytem_recoman.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error calling AI service for CV: {FileName}", fileName);
-                throw;
+                // في حالة الفشل، نعيد تحليلًا وهميًا لتجنب ظهور خطأ 500 للمستخدم
+                return new CvAnalysisResultDto
+                {
+                    Analysis = "Analysis temporarily unavailable. Please try again later.",
+                    Skills = new List<string>()
+                };
             }
         }
 
         /// <summary>
-        /// استخراج المهارات من نص التحليل مع مطابقة ضبابية وتصنيف.
+        /// استخراج المهارات من نص التحليل باستخدام عدة طرق لضمان الاستقرار والشمولية.
         /// </summary>
         private List<string> ExtractSkillsFromAnalysis(string analysis)
         {
+            var skills = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (string.IsNullOrWhiteSpace(analysis))
                 return new List<string>();
 
-            var candidateSkills = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // 1. البحث المباشر عن مهارات معروفة في النص بأكمله
+            var commonTech = KnownSkills.Keys.ToList();
+            foreach (var tech in commonTech)
+            {
+                if (analysis.Contains(tech, StringComparison.OrdinalIgnoreCase))
+                    skills.Add(tech);
+            }
 
-            // 1. البحث عن أقسام المهارات بأسماء مختلفة
+            // 2. البحث عن أقسام المهارات المحددة (بأكثر من صيغة)
             var sectionPatterns = new[]
             {
-                @"(?i)SKILLS?\s*:?\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)",
-                @"(?i)TECHNICAL SKILLS?\s*:?\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)",
-                @"(?i)PROGRAMMING LANGUAGES?\s*:?\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)",
-                @"(?i)TOOLS?\s*:?\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)",
-                @"(?i)FRAMEWORKS?\s*:?\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)",
-                @"(?i)DATABASES?\s*:?\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)"
+                @"(?i)SKILLS?\s*:?\s*(.*?)(?=\n\n|\n[A-Z]|\Z)",
+                @"(?i)TECHNICAL SKILLS?\s*:?\s*(.*?)(?=\n\n|\n[A-Z]|\Z)",
+                @"(?i)PROGRAMMING LANGUAGES?\s*:?\s*(.*?)(?=\n\n|\n[A-Z]|\Z)",
+                @"(?i)FRONT END TECHNOLOGIES?\s*:?\s*(.*?)(?=\n\n|\n[A-Z]|\Z)",
+                @"(?i)BACK END TECHNOLOGIES?\s*:?\s*(.*?)(?=\n\n|\n[A-Z]|\Z)",
+                @"(?i)DATABASES?\s*:?\s*(.*?)(?=\n\n|\n[A-Z]|\Z)",
+                @"(?i)TOOLS?\s*:?\s*(.*?)(?=\n\n|\n[A-Z]|\Z)",
+                @"(?i)FRAMEWORKS?\s*:?\s*(.*?)(?=\n\n|\n[A-Z]|\Z)"
             };
 
             string allSkillsText = "";
@@ -136,68 +167,41 @@ namespace career_sytem_recoman.Services
                     allSkillsText += " " + match.Groups[1].Value;
             }
 
-            if (string.IsNullOrWhiteSpace(allSkillsText))
-                allSkillsText = analysis;
-
-            // 2. استخراج العناصر النقطية (bullets)
-            var bulletMatches = Regex.Matches(allSkillsText, @"(?:^|\n)\s*[•\-\*•\d\.]\s*(.*?)(?=\n\s*[•\-\*•\d\.]|\n\n|\Z)", RegexOptions.Multiline);
-            if (bulletMatches.Count > 0)
+            if (!string.IsNullOrWhiteSpace(allSkillsText))
             {
-                foreach (Match match in bulletMatches)
+                // تقسيم النص على المسافات والفواصل والأسطر الجديدة
+                var words = Regex.Split(allSkillsText, @"[\s,;:\n\r]+")
+                                 .Select(w => w.Trim())
+                                 .Where(w => w.Length > 1 && w.Length < 50 && !IsNonSkillPhrase(w));
+                foreach (var word in words)
                 {
-                    var skill = match.Groups[1].Value.Trim().TrimEnd(':');
-                    if (!string.IsNullOrWhiteSpace(skill) && skill.Length < 100 && !IsNonSkillPhrase(skill))
-                        candidateSkills.Add(NormalizeSkill(skill));
-                }
-            }
-            else
-            {
-                // إذا لم توجد نقاط، جرب تقسيم النص على الأسطر
-                var lines = allSkillsText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-                foreach (var line in lines)
-                {
-                    var cleanLine = line.Trim().TrimStart('•', '-', '*', '•').Trim();
-                    if (!string.IsNullOrWhiteSpace(cleanLine) && cleanLine.Length < 100 && !IsNonSkillPhrase(cleanLine))
-                        candidateSkills.Add(NormalizeSkill(cleanLine));
+                    if (KnownSkills.ContainsKey(word))
+                        skills.Add(word);
+                    else
+                    {
+                        var match = KnownSkills.Keys.FirstOrDefault(k => string.Equals(k, word, StringComparison.OrdinalIgnoreCase));
+                        if (match != null)
+                            skills.Add(match);
+                    }
                 }
             }
 
-            // 3. مطابقة ضبابية (Fuzzy Matching) مع قائمة المهارات المعروفة
-            var finalSkills = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var candidate in candidateSkills)
+            // 3. البحث عن عناوين نقطية (إذا كانت موجودة) كخطوة إضافية
+            var bulletMatches = Regex.Matches(analysis, @"(?:^|\n)\s*[•\-\*•\d\.]\s*([A-Za-z0-9\s#\+\.]+?)(?=\n\s*[•\-\*•\d\.]|\n\n|\Z)", RegexOptions.Multiline);
+            foreach (Match match in bulletMatches)
             {
-                // تجاهل العبارات الطويلة جداً
-                if (candidate.Length > 50) continue;
-
-                // البحث عن أفضل تطابق مع مهارة معروفة
-                var matches = KnownSkills.Keys
-                    .Select(known => new { Known = known, Score = Fuzz.PartialRatio(candidate, known) })
-                    .Where(m => m.Score > 70) // عتبة 70%
-                    .OrderByDescending(m => m.Score)
-                    .ToList();
-
-                if (matches.Any())
+                var skill = match.Groups[1].Value.Trim();
+                if (!string.IsNullOrWhiteSpace(skill) && skill.Length < 50 && !IsNonSkillPhrase(skill))
                 {
-                    // أضف أفضل تطابق (أو يمكن إضافة الكل إذا كانت النتائج متقاربة)
-                    finalSkills.Add(matches.First().Known);
-                }
-                else
-                {
-                    // إذا لم نجد تطابقاً، أضف المرشح نفسه (ربما مهارة غير معروفة)
-                    finalSkills.Add(candidate);
+                    var matched = KnownSkills.Keys.FirstOrDefault(k => skill.Contains(k, StringComparison.OrdinalIgnoreCase));
+                    if (matched != null)
+                        skills.Add(matched);
+                    else
+                        skills.Add(skill);
                 }
             }
 
-            // 4. إضافة مهارات تقنية شائعة موجودة في النص (كخطوة احتياطية)
-            var commonTech = KnownSkills.Keys.ToList();
-            foreach (var tech in commonTech)
-            {
-                if (analysis.Contains(tech, StringComparison.OrdinalIgnoreCase))
-                    finalSkills.Add(tech);
-            }
-
-            // 5. إزالة التكرارات والترتيب الأبجدي
-            return finalSkills.OrderBy(s => s).ToList();
+            return skills.OrderBy(s => s).ToList();
         }
 
         /// <summary>
@@ -205,9 +209,7 @@ namespace career_sytem_recoman.Services
         /// </summary>
         private string NormalizeSkill(string skill)
         {
-            // إزالة الرموز غير المرغوب فيها
-            var normalized = Regex.Replace(skill, @"[^\w\s\.#\+\-]", "").Trim();
-            return normalized;
+            return Regex.Replace(skill, @"[^\w\s\.#\+\-]", "").Trim();
         }
 
         /// <summary>
@@ -222,15 +224,11 @@ namespace career_sytem_recoman.Services
                 "section", "review", "provide", "include", "consider", "would", "should", "could",
                 "using", "adding", "adding a", "based on", "according to", "please", "here", "step",
                 "area", "evaluate", "present", "improve", "address", "enhance", "effectively",
-                "available", "upon", "request", "reference", "references", "resume", "cv", "curriculum"
+                "available", "upon", "request", "reference", "references", "resume", "cv", "curriculum",
+                "and", "the", "for", "with", "this", "that", "are", "was", "were", "been", "not"
             };
             var lowerPhrase = phrase.ToLower();
             return nonSkillKeywords.Any(k => lowerPhrase.Contains(k)) || phrase.Length > 80;
-        }
-
-        private class AnalysisResponse
-        {
-            public string Analysis { get; set; } = string.Empty;
         }
     }
 }

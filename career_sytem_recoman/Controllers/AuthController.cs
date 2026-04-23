@@ -6,12 +6,17 @@ namespace career_sytem_recoman.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-public class AuthController(IAuthService authService) : ControllerBase
+public class AuthController : ControllerBase
 {
-    private readonly IAuthService _authService = authService;
+    private readonly IAuthService _authService;
+
+    public AuthController(IAuthService authService)
+    {
+        _authService = authService;
+    }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterDto dto)
+    public async Task<IActionResult> Register([FromForm] RegisterDto dto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
@@ -23,12 +28,7 @@ public class AuthController(IAuthService authService) : ControllerBase
         }
         catch (Exception ex)
         {
-            var innerMessage = ex.InnerException?.Message ?? string.Empty;
-            if (innerMessage.Contains("CHECK constraint") || ex.Message.Contains("UserType"))
-            {
-                return BadRequest(new { error = "Invalid UserType. Allowed values are 'Employee' or 'Company'." });
-            }
-            return StatusCode(500, new { error = "An unexpected error occurred.", details = ex.Message });
+            return StatusCode(500, new { error = ex.Message });
         }
     }
 

@@ -31,7 +31,7 @@ namespace career_sytem_recoman.Models.DTOs.User
         // الحقول الخاصة بتحليل السيرة الذاتية
         public string? CvAnalysis { get; set; }
         public List<string>? SkillsList { get; set; }
-
+        public string? JobDescription { get; set; }
         // العلاقات
         public List<ApplicationDto>? Applications { get; set; }
         public List<CourseTrackingDto>? CourseTrackings { get; set; }

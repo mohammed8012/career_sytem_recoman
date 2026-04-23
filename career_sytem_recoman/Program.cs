@@ -92,6 +92,7 @@ namespace career_sytem_recoman
             builder.Services.AddScoped<IHomeService, HomeService>();
             builder.Services.AddScoped<IAiCvService, AiCvService>();
             builder.Services.AddScoped<IRecommendationService, RecommendationService>();
+            builder.Services.AddScoped<ISavedJobService, SavedJobService>();
 
             builder.Services.AddHttpClient();
             builder.Services.AddHttpContextAccessor();

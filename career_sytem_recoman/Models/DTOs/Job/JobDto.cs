@@ -1,4 +1,6 @@
-﻿using career_sytem_recoman.Models.DTOs.Application;
+﻿using System;
+using System.Collections.Generic;
+using career_sytem_recoman.Models.DTOs.Application;
 using career_sytem_recoman.Models.DTOs.User;
 
 namespace career_sytem_recoman.Models.DTOs.Job
@@ -21,12 +23,16 @@ namespace career_sytem_recoman.Models.DTOs.Job
         // معلومات الشركة (صاحب العمل)
         public UserProfileDto? Company { get; set; }
 
+        // 👇 أضف هذه الخاصية الجديدة
+        public string? CompanyName { get; set; }
+
         // قائمة المتقدمين (للاستخدام من قبل الشركة)
         public List<ApplicationDto>? Applications { get; set; }
 
         // عدد المتقدمين (محسوب)
         public int ApplicantsCount => Applications?.Count ?? 0;
-        // درجة المطابقة (للتوصيات) كنسبة مئوية
+
+        // درجة المطابقة (للتوصيات)
         public double MatchScore { get; set; } = 0;
     }
 }

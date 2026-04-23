@@ -4,6 +4,6 @@ namespace career_sytem_recoman.Services.Interfaces
 {
     public interface IAiCvService
     {
-        Task<CvAnalysisResultDto> GetFullAnalysisAsync(Stream fileStream, string fileName);
+        Task<CvAnalysisResultDto> GetFullAnalysisAsync(Stream fileStream, string fileName, string jobDescription);
     }
 }

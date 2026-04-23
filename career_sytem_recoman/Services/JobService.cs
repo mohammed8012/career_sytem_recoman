@@ -5,11 +5,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace career_sytem_recoman.Services;
 
-public class JobService(JobPlatformContext context) : IJobService
+public class JobService : IJobService
 {
+    private readonly JobPlatformContext _context;
+
+    public JobService(JobPlatformContext context)
+    {
+        _context = context;
+    }
+
     public async Task<List<JobDto>> GetJobsAsync(JobFilterDto filter)
     {
-        var query = context.Jobs.AsQueryable();
+        var query = _context.Jobs.AsQueryable();
 
         if (!string.IsNullOrEmpty(filter.JobCategory))
             query = query.Where(j => j.JobCategory == filter.JobCategory);
@@ -23,38 +30,45 @@ public class JobService(JobPlatformContext context) : IJobService
             query = query.Where(j => j.CompanyId == filter.CompanyId);
 
         var jobs = await query
+            .Include(j => j.Company) // 👈 ربط جدول الشركات
             .OrderByDescending(j => j.CreatedAt)
             .Skip(((filter.Page ?? 1) - 1) * (filter.PageSize ?? 10))
             .Take(filter.PageSize ?? 10)
+            .Select(j => new JobDto
+            {
+                JobId = j.JobId,
+                CompanyId = j.CompanyId,
+                CompanyName = j.Company.CompanyName ?? (j.Company.FirstName + " " + j.Company.LastName), // اسم الشركة
+                JobTitle = j.JobTitle,
+                JobCategory = j.JobCategory,
+                Description = j.Description,
+                Requirements = j.Requirements,
+                Location = j.Location,
+                JobType = j.JobType,
+                MinExperience = j.MinExperience,
+                CreatedAt = j.CreatedAt,
+                ExpiryDate = j.ExpiryDate,
+                IsActive = j.IsActive
+            })
             .ToListAsync();
 
-        return [.. jobs.Select(j => new JobDto
-        {
-            JobId = j.JobId,
-            CompanyId = j.CompanyId,
-            JobTitle = j.JobTitle,
-            JobCategory = j.JobCategory,
-            Description = j.Description,
-            Requirements = j.Requirements,
-            Location = j.Location,
-            JobType = j.JobType,
-            MinExperience = j.MinExperience,
-            CreatedAt = j.CreatedAt,
-            ExpiryDate = j.ExpiryDate,
-            IsActive = j.IsActive
-        })];
+        return jobs;
     }
 
     public async Task<JobDto> GetJobAsync(int jobId)
     {
-        var job = await context.Jobs.FindAsync(jobId);
-        if (job is null)
+        var job = await _context.Jobs
+            .Include(j => j.Company)
+            .FirstOrDefaultAsync(j => j.JobId == jobId);
+
+        if (job == null)
             throw new Exception("Job not found.");
 
         return new JobDto
         {
             JobId = job.JobId,
             CompanyId = job.CompanyId,
+            CompanyName = job.Company.CompanyName ?? (job.Company.FirstName + " " + job.Company.LastName),
             JobTitle = job.JobTitle,
             JobCategory = job.JobCategory,
             Description = job.Description,
@@ -85,16 +99,16 @@ public class JobService(JobPlatformContext context) : IJobService
             CreatedAt = DateTime.UtcNow
         };
 
-        context.Jobs.Add(job);
-        await context.SaveChangesAsync();
+        _context.Jobs.Add(job);
+        await _context.SaveChangesAsync();
 
         return await GetJobAsync(job.JobId);
     }
 
     public async Task<JobDto> UpdateJobAsync(int jobId, UpdateJobDto dto, int employerId)
     {
-        var job = await context.Jobs.FindAsync(jobId);
-        if (job is null)
+        var job = await _context.Jobs.FindAsync(jobId);
+        if (job == null)
             throw new Exception("Job not found.");
         if (job.CompanyId != employerId)
             throw new UnauthorizedAccessException();
@@ -103,13 +117,13 @@ public class JobService(JobPlatformContext context) : IJobService
             job.JobTitle = dto.JobTitle;
         if (!string.IsNullOrEmpty(dto.JobCategory))
             job.JobCategory = dto.JobCategory;
-        if (dto.Description is not null)
+        if (dto.Description != null)
             job.Description = dto.Description;
-        if (dto.Requirements is not null)
+        if (dto.Requirements != null)
             job.Requirements = dto.Requirements;
-        if (dto.Location is not null)
+        if (dto.Location != null)
             job.Location = dto.Location;
-        if (dto.JobType is not null)
+        if (dto.JobType != null)
             job.JobType = dto.JobType;
         if (dto.MinExperience.HasValue)
             job.MinExperience = dto.MinExperience;
@@ -118,31 +132,33 @@ public class JobService(JobPlatformContext context) : IJobService
         if (dto.IsActive.HasValue)
             job.IsActive = dto.IsActive.Value;
 
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
         return await GetJobAsync(jobId);
     }
 
     public async Task DeleteJobAsync(int jobId, int employerId)
     {
-        var job = await context.Jobs.FindAsync(jobId);
-        if (job is null)
+        var job = await _context.Jobs.FindAsync(jobId);
+        if (job == null)
             return;
         if (job.CompanyId != employerId)
             throw new UnauthorizedAccessException();
 
-        context.Jobs.Remove(job);
-        await context.SaveChangesAsync();
+        _context.Jobs.Remove(job);
+        await _context.SaveChangesAsync();
     }
 
     public async Task<List<JobDto>> GetJobsByCompanyAsync(int companyId)
     {
-        var jobs = await context.Jobs
+        var jobs = await _context.Jobs
             .Where(j => j.CompanyId == companyId)
+            .Include(j => j.Company)
             .OrderByDescending(j => j.CreatedAt)
             .Select(j => new JobDto
             {
                 JobId = j.JobId,
                 CompanyId = j.CompanyId,
+                CompanyName = j.Company.CompanyName ?? (j.Company.FirstName + " " + j.Company.LastName),
                 JobTitle = j.JobTitle,
                 JobCategory = j.JobCategory,
                 Description = j.Description,
@@ -156,6 +172,6 @@ public class JobService(JobPlatformContext context) : IJobService
             })
             .ToListAsync();
 
-        return [.. jobs];
+        return jobs;
     }
 }

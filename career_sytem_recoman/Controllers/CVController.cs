@@ -28,9 +28,6 @@ namespace career_sytem_recoman.Controllers
             return int.TryParse(userIdClaim, out var id) ? id : 0;
         }
 
-        /// <summary>
-        /// تحليل السيرة الذاتية المحفوظة للمستخدم الحالي وحفظ النتائج تلقائياً.
-        /// </summary>
         [HttpPost("analyze")]
         public async Task<IActionResult> AnalyzeSavedCv()
         {
@@ -40,6 +37,8 @@ namespace career_sytem_recoman.Controllers
             var user = await _userService.GetProfileAsync(userId);
             if (string.IsNullOrEmpty(user.Cvpath))
                 return BadRequest("No CV found for this user. Please upload a CV first.");
+            if (string.IsNullOrWhiteSpace(user.JobDescription))
+                return BadRequest(new { error = "Job description is required for CV analysis. Please update your profile with a job description first.", field = "jobDescription" });
 
             string webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
             var filePath = Path.Combine(webRootPath, user.Cvpath.TrimStart('/'));
@@ -47,7 +46,7 @@ namespace career_sytem_recoman.Controllers
                 return NotFound("Saved CV file not found on server.");
 
             await using var fileStream = System.IO.File.OpenRead(filePath);
-            var result = await _aiCvService.GetFullAnalysisAsync(fileStream, Path.GetFileName(filePath));
+            var result = await _aiCvService.GetFullAnalysisAsync(fileStream, Path.GetFileName(filePath), user.JobDescription);
 
             var updateDto = new UpdateProfileDto
             {
@@ -56,19 +55,9 @@ namespace career_sytem_recoman.Controllers
             };
             await _userService.UpdateProfileAsync(userId, updateDto);
 
-            return Ok(new
-            {
-                Message = "Saved CV analyzed and saved successfully.",
-                Analysis = result.Analysis,
-                Skills = result.Skills
-            });
+            return Ok(new { Message = "Saved CV analyzed and saved successfully.", Analysis = result.Analysis, Skills = result.Skills });
         }
 
-        /// <summary>
-        /// رفع ملف PDF وتحليله مع خيار حفظ النتائج.
-        /// </summary>
-        /// <param name="file">ملف PDF</param>
-        /// <param name="save">إذا كان true، يتم حفظ التحليل والمهارات في قاعدة البيانات (اختياري، افتراضي false)</param>
         [HttpPost("upload-and-analyze")]
         public async Task<IActionResult> UploadAndAnalyzeCv(IFormFile file, [FromForm] bool save = false)
         {
@@ -82,14 +71,21 @@ namespace career_sytem_recoman.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            // 1. تحليل الملف مباشرة من التدفق (بدون حفظ أولاً)
-            await using var fileStream = file.OpenReadStream();
-            var result = await _aiCvService.GetFullAnalysisAsync(fileStream, file.FileName);
+            var userProfile = await _userService.GetProfileAsync(userId);
+            if (string.IsNullOrWhiteSpace(userProfile.JobDescription))
+            {
+                return BadRequest(new
+                {
+                    error = "Job description is required for CV analysis. Please update your profile with a job description first.",
+                    field = "jobDescription"
+                });
+            }
 
-            // 2. حفظ الملف على القرص وتحديث CvPath في قاعدة البيانات
+            await using var fileStream = file.OpenReadStream();
+            var result = await _aiCvService.GetFullAnalysisAsync(fileStream, file.FileName, userProfile.JobDescription);
+
             var cvPath = await _userService.UploadCvAsync(userId, file);
 
-            // 3. حفظ التحليل والمهارات إذا طلب المستخدم
             if (save)
             {
                 var updateDto = new UpdateProfileDto
@@ -115,11 +111,7 @@ namespace career_sytem_recoman.Controllers
             if (userId == 0) return Unauthorized();
 
             var profile = await _userService.GetProfileAsync(userId);
-            return Ok(new
-            {
-                Analysis = profile.CvAnalysis ?? "",
-                Skills = profile.SkillsList ?? new List<string>()
-            });
+            return Ok(new { Analysis = profile.CvAnalysis ?? "", Skills = profile.SkillsList ?? new List<string>() });
         }
 
         [HttpGet("analysis/{userId}")]
@@ -127,11 +119,7 @@ namespace career_sytem_recoman.Controllers
         public async Task<IActionResult> GetUserAnalysis(int userId)
         {
             var profile = await _userService.GetProfileAsync(userId);
-            return Ok(new
-            {
-                Analysis = profile.CvAnalysis ?? "",
-                Skills = profile.SkillsList ?? new List<string>()
-            });
+            return Ok(new { Analysis = profile.CvAnalysis ?? "", Skills = profile.SkillsList ?? new List<string>() });
         }
     }
 }

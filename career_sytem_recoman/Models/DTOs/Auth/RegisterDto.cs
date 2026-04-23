@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 
 namespace career_sytem_recoman.Models.DTOs.Auth
 {
@@ -20,7 +21,7 @@ namespace career_sytem_recoman.Models.DTOs.Auth
         public string? Phone { get; set; }
 
         [Required, MaxLength(20)]
-        public string? UserType { get; set; } // ملحوظة: سيكون مطلوبًا لكن بدون قيمة افتراضية، مع علامة استفهام لأنها قد تكون null قبل التحقق
+        public string? UserType { get; set; }
 
         [MaxLength(100)]
         public string? Location { get; set; }
@@ -54,5 +55,9 @@ namespace career_sytem_recoman.Models.DTOs.Auth
 
         [MaxLength(255)]
         public string? LogoPath { get; set; }
+
+        public string? JobDescription { get; set; }   // ✅ جديد
+
+        //public IFormFile? CvFile { get; set; }
     }
 }

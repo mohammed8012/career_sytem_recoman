@@ -33,6 +33,7 @@ namespace career_sytem_recoman.Models.Entities
         // الحقول الخاصة بتحليل السيرة الذاتية (تم إضافتها سابقًا)
         public string? CvAnalysis { get; set; }
         public string? SkillsList { get; set; }
+        public string? JobDescription { get; set; }
 
         // العلاقات
         public virtual ICollection<Application> Applications { get; set; } = new List<Application>();

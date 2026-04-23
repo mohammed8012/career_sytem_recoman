@@ -27,40 +27,40 @@ namespace career_sytem_recoman.Services
         }
 
         /// <summary>
-        /// جلب قائمة مهارات موحدة للمستخدم من كلا الحقلين: SkillsList (JSON) و Skills (نص قديم)
+        /// جلب النص الكامل للمستخدم للمقارنة (تحليل السيرة + المهارات + الوصف الوظيفي)
         /// </summary>
-        private async Task<List<string>> GetCombinedSkillsAsync(int userId)
+        private async Task<string> GetUserFullTextAsync(int userId)
         {
             var user = await _userService.GetProfileAsync(userId);
-            var skillsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var fullText = new List<string>();
 
-            // إضافة مهارات من SkillsList (المصفوفة الجديدة)
+            // 1. نص التحليل الكامل (CvAnalysis)
+            if (!string.IsNullOrWhiteSpace(user.CvAnalysis))
+                fullText.Add(user.CvAnalysis);
+
+            // 2. الوصف الوظيفي (JobDescription)
+            if (!string.IsNullOrWhiteSpace(user.JobDescription))
+                fullText.Add(user.JobDescription);
+
+            // 3. المهارات (SkillsList) كنص
             if (user.SkillsList != null && user.SkillsList.Any())
-            {
-                foreach (var skill in user.SkillsList)
-                    skillsSet.Add(skill.Trim());
-            }
+                fullText.Add(string.Join(" ", user.SkillsList));
 
-            // إضافة مهارات من Skills (النص القديم) - نقسم على فواصل أو مسافات أو أسطر
+            // 4. الحقول النصية الأخرى (Bio, Skills القديم) اختيارياً
+            if (!string.IsNullOrWhiteSpace(user.Bio))
+                fullText.Add(user.Bio);
             if (!string.IsNullOrWhiteSpace(user.Skills))
-            {
-                // تقسيم النص على فواصل، مسافات، أسطر جديدة، أو علامات ترقيم
-                var rawSkills = Regex.Split(user.Skills, @"[,\n\r\t]+")
-                                     .Select(s => s.Trim())
-                                     .Where(s => s.Length > 0 && s.Length < 50);
-                foreach (var skill in rawSkills)
-                    skillsSet.Add(skill);
-            }
+                fullText.Add(user.Skills);
 
-            return skillsSet.ToList();
+            return string.Join(" ", fullText).ToLower();
         }
 
         public async Task<List<JobDto>> GetRecommendedJobsAsync(int userId)
         {
-            var userSkills = await GetCombinedSkillsAsync(userId);
+            var userFullText = await GetUserFullTextAsync(userId);
 
-            // إذا لم تكن هناك مهارات، نرجع آخر 5 وظائف نشطة
-            if (userSkills.Count == 0)
+            // إذا كان النص فارغاً، نرجع آخر 5 وظائف نشطة
+            if (string.IsNullOrWhiteSpace(userFullText))
             {
                 var defaultJobs = await _jobService.GetJobsAsync(new JobFilterDto { PageSize = 5 });
                 return defaultJobs;
@@ -72,7 +72,7 @@ namespace career_sytem_recoman.Services
                 .Select(job => new
                 {
                     Job = job,
-                    Score = CalculateJobMatchScore(job, userSkills)
+                    Score = CalculateJobMatchScore(job, userFullText)
                 })
                 .Where(x => x.Score > 0)
                 .OrderByDescending(x => x.Score)
@@ -90,24 +90,20 @@ namespace career_sytem_recoman.Services
                     CreatedAt = x.Job.CreatedAt,
                     ExpiryDate = x.Job.ExpiryDate,
                     IsActive = x.Job.IsActive,
-                    MatchScore = Math.Round((x.Score / (double)userSkills.Count) * 100, 0)
+                    Company = x.Job.Company,
+                    Applications = x.Job.Applications,
+                    MatchScore = x.Score // Score هنا يمثل النسبة المئوية
                 })
                 .ToList();
-
-            if (scoredJobs.Count == 0)
-            {
-                var defaultJobs = await _jobService.GetJobsAsync(new JobFilterDto { PageSize = 5 });
-                return defaultJobs;
-            }
 
             return scoredJobs;
         }
 
         public async Task<List<CourseDto>> GetRecommendedCoursesAsync(int userId)
         {
-            var userSkills = await GetCombinedSkillsAsync(userId);
+            var userFullText = await GetUserFullTextAsync(userId);
 
-            if (userSkills.Count == 0)
+            if (string.IsNullOrWhiteSpace(userFullText))
             {
                 var defaultCourses = await _courseService.GetCoursesAsync(new CourseFilterDto { PageSize = 5 });
                 return defaultCourses;
@@ -119,7 +115,7 @@ namespace career_sytem_recoman.Services
                 .Select(course => new
                 {
                     Course = course,
-                    Score = CalculateCourseMatchScore(course, userSkills)
+                    Score = CalculateCourseMatchScore(course, userFullText)
                 })
                 .Where(x => x.Score > 0)
                 .OrderByDescending(x => x.Score)
@@ -134,29 +130,73 @@ namespace career_sytem_recoman.Services
                     CourseUrl = x.Course.CourseUrl,
                     CreatedAt = x.Course.CreatedAt,
                     IsActive = x.Course.IsActive,
-                    MatchScore = Math.Round((x.Score / (double)userSkills.Count) * 100, 0)
+                    Tracking = x.Course.Tracking,
+                    MatchScore = x.Score
                 })
                 .ToList();
-
-            if (scoredCourses.Count == 0)
-            {
-                var defaultCourses = await _courseService.GetCoursesAsync(new CourseFilterDto { PageSize = 5 });
-                return defaultCourses;
-            }
 
             return scoredCourses;
         }
 
-        private int CalculateJobMatchScore(JobDto job, List<string> userSkills)
+        /// <summary>
+        /// حساب درجة المطابقة بين نص المستخدم ونص الوظيفة
+        /// </summary>
+        private double CalculateJobMatchScore(JobDto job, string userFullText)
         {
-            var textToSearch = (job.JobTitle + " " + job.Description + " " + job.Requirements).ToLower();
-            return userSkills.Count(skill => textToSearch.Contains(skill.ToLower()));
+            if (string.IsNullOrWhiteSpace(userFullText))
+                return 0;
+
+            var jobText = (job.JobTitle + " " + job.Description + " " + job.Requirements).ToLower();
+            if (string.IsNullOrWhiteSpace(jobText))
+                return 0;
+
+            // استخدام TF-IDF بسيط: حساب عدد الكلمات المشتركة كنسبة
+            var userWords = userFullText.Split(new[] { ' ', '\n', '\r', '\t', ',', '.', ';', ':' }, StringSplitOptions.RemoveEmptyEntries)
+                                        .Select(w => w.Trim())
+                                        .Where(w => w.Length > 2)
+                                        .ToHashSet();
+
+            var jobWords = jobText.Split(new[] { ' ', '\n', '\r', '\t', ',', '.', ';', ':' }, StringSplitOptions.RemoveEmptyEntries)
+                                  .Select(w => w.Trim())
+                                  .Where(w => w.Length > 2)
+                                  .ToHashSet();
+
+            if (userWords.Count == 0 || jobWords.Count == 0)
+                return 0;
+
+            int commonCount = userWords.Count(w => jobWords.Contains(w));
+            double score = (commonCount / (double)Math.Max(userWords.Count, jobWords.Count)) * 100;
+            return Math.Round(score, 0);
         }
 
-        private int CalculateCourseMatchScore(CourseDto course, List<string> userSkills)
+        /// <summary>
+        /// حساب درجة المطابقة بين نص المستخدم ونص الكورس
+        /// </summary>
+        private double CalculateCourseMatchScore(CourseDto course, string userFullText)
         {
-            var textToSearch = (course.Title + " " + course.Description).ToLower();
-            return userSkills.Count(skill => textToSearch.Contains(skill.ToLower()));
+            if (string.IsNullOrWhiteSpace(userFullText))
+                return 0;
+
+            var courseText = (course.Title + " " + course.Description).ToLower();
+            if (string.IsNullOrWhiteSpace(courseText))
+                return 0;
+
+            var userWords = userFullText.Split(new[] { ' ', '\n', '\r', '\t', ',', '.', ';', ':' }, StringSplitOptions.RemoveEmptyEntries)
+                                        .Select(w => w.Trim())
+                                        .Where(w => w.Length > 2)
+                                        .ToHashSet();
+
+            var courseWords = courseText.Split(new[] { ' ', '\n', '\r', '\t', ',', '.', ';', ':' }, StringSplitOptions.RemoveEmptyEntries)
+                                        .Select(w => w.Trim())
+                                        .Where(w => w.Length > 2)
+                                        .ToHashSet();
+
+            if (userWords.Count == 0 || courseWords.Count == 0)
+                return 0;
+
+            int commonCount = userWords.Count(w => courseWords.Contains(w));
+            double score = (commonCount / (double)Math.Max(userWords.Count, courseWords.Count)) * 100;
+            return Math.Round(score, 0);
         }
     }
 }
