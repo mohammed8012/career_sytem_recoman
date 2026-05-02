@@ -34,5 +34,8 @@ namespace career_sytem_recoman.Models.DTOs.Job
 
         // درجة المطابقة (للتوصيات)
         public double MatchScore { get; set; } = 0;
+
+        // ✅ خاصية محسوبة: هل انتهت صلاحية الوظيفة؟
+        public bool IsExpired => ExpiryDate.HasValue && ExpiryDate.Value <= DateOnly.FromDateTime(DateTime.Now);
     }
 }

@@ -23,6 +23,7 @@ public class EmployerService : IEmployerService
     {
         var jobs = await _context.Jobs
             .Where(j => j.CompanyId == employerId)
+            .Include(j => j.Company)
             .OrderByDescending(j => j.CreatedAt)
             .Select(j => new JobDto
             {
@@ -37,7 +38,8 @@ public class EmployerService : IEmployerService
                 MinExperience = j.MinExperience,
                 CreatedAt = j.CreatedAt,
                 ExpiryDate = j.ExpiryDate,
-                IsActive = j.IsActive
+                IsActive = j.IsActive,
+                CompanyName = j.Company.CompanyName ?? (j.Company.FirstName + " " + j.Company.LastName)
             })
             .ToListAsync();
 
@@ -103,11 +105,11 @@ public class EmployerService : IEmployerService
                 CvPath = user.Cvpath,
                 Status = app.Status,
                 MatchScore = matchScore,
-                SkillsList = skills
+                SkillsList = skills,
+                ApplicationId = app.ApplicationId   // ✅ إضافة معرف التقديم
             });
         }
 
-        // ترتيب المتقدمين تنازلياً حسب نسبة المطابقة (الأعلى أولاً)
         return result.OrderByDescending(a => a.MatchScore).ToList();
     }
 

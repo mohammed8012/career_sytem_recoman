@@ -16,7 +16,9 @@ public class JobService : IJobService
 
     public async Task<List<JobDto>> GetJobsAsync(JobFilterDto filter)
     {
-        var query = _context.Jobs.AsQueryable();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var query = _context.Jobs
+            .Where(j => j.IsActive == true && (j.ExpiryDate == null || j.ExpiryDate > today));
 
         if (!string.IsNullOrEmpty(filter.JobCategory))
             query = query.Where(j => j.JobCategory == filter.JobCategory);
@@ -30,7 +32,7 @@ public class JobService : IJobService
             query = query.Where(j => j.CompanyId == filter.CompanyId);
 
         var jobs = await query
-            .Include(j => j.Company) // 👈 ربط جدول الشركات
+            .Include(j => j.Company)
             .OrderByDescending(j => j.CreatedAt)
             .Skip(((filter.Page ?? 1) - 1) * (filter.PageSize ?? 10))
             .Take(filter.PageSize ?? 10)
@@ -38,7 +40,7 @@ public class JobService : IJobService
             {
                 JobId = j.JobId,
                 CompanyId = j.CompanyId,
-                CompanyName = j.Company.CompanyName ?? (j.Company.FirstName + " " + j.Company.LastName), // اسم الشركة
+                CompanyName = j.Company.CompanyName ?? (j.Company.FirstName + " " + j.Company.LastName),
                 JobTitle = j.JobTitle,
                 JobCategory = j.JobCategory,
                 Description = j.Description,
@@ -63,6 +65,10 @@ public class JobService : IJobService
 
         if (job == null)
             throw new Exception("Job not found.");
+
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (job.IsActive != true || (job.ExpiryDate.HasValue && job.ExpiryDate.Value <= today))
+            throw new Exception("Job is not available.");
 
         return new JobDto
         {
@@ -150,8 +156,9 @@ public class JobService : IJobService
 
     public async Task<List<JobDto>> GetJobsByCompanyAsync(int companyId)
     {
+        var today = DateOnly.FromDateTime(DateTime.Now);
         var jobs = await _context.Jobs
-            .Where(j => j.CompanyId == companyId)
+            .Where(j => j.CompanyId == companyId && j.IsActive == true && (j.ExpiryDate == null || j.ExpiryDate > today))
             .Include(j => j.Company)
             .OrderByDescending(j => j.CreatedAt)
             .Select(j => new JobDto

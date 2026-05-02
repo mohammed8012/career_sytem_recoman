@@ -14,6 +14,10 @@
         public string? Status { get; set; }
         // النسبة المئوية للمطابقة بين مهارات المتقدم ومتطلبات الوظيفة
         public double MatchScore { get; set; } = 0;
-        public List<string>? SkillsList { get; set; }   // 👈 يجب وجود هذا السطر
+
+        public List<string>? SkillsList { get; set; }
+        // ✅ الخاصية الجديدة
+        public int ApplicationId { get; set; }// 👈 يجب وجود هذا
     }
+
 }

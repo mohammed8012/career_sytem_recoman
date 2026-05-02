@@ -4,6 +4,6 @@ namespace career_sytem_recoman.Services.Interfaces
 {
     public interface IHomeService
     {
-        Task<HomeSuggestionsDto> GetSuggestionsAsync();
+        Task<HomeSuggestionsDto> GetSuggestionsAsync(int? userId = null);
     }
 }

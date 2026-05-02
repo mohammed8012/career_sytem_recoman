@@ -10,12 +10,10 @@ namespace career_sytem_recoman.Controllers
     public class HomeController : ControllerBase
     {
         private readonly IHomeService _homeService;
-        private readonly IRecommendationService _recommendationService;
 
-        public HomeController(IHomeService homeService, IRecommendationService recommendationService)
+        public HomeController(IHomeService homeService)
         {
             _homeService = homeService;
-            _recommendationService = recommendationService;
         }
 
         private int? GetCurrentUserId()
@@ -25,28 +23,12 @@ namespace career_sytem_recoman.Controllers
         }
 
         [HttpGet("suggestions")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetSuggestions()
         {
             var userId = GetCurrentUserId();
-
-            if (userId.HasValue)
-            {
-                // مستخدم مسجل → نعرض توصيات مخصصة
-                var recommendedJobs = await _recommendationService.GetRecommendedJobsAsync(userId.Value);
-                var recommendedCourses = await _recommendationService.GetRecommendedCoursesAsync(userId.Value);
-
-                return Ok(new
-                {
-                    Jobs = recommendedJobs,
-                    Courses = recommendedCourses
-                });
-            }
-            else
-            {
-                // زائر غير مسجل → نعرض آخر العناصر (الطريقة القديمة)
-                var suggestions = await _homeService.GetSuggestionsAsync();
-                return Ok(suggestions);
-            }
+            var suggestions = await _homeService.GetSuggestionsAsync(userId);
+            return Ok(suggestions);
         }
     }
 }
