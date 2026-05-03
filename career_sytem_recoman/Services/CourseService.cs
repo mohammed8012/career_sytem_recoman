@@ -12,6 +12,12 @@ public class CourseService(JobPlatformContext context) : ICourseService
     {
         var query = context.Courses.AsQueryable();
 
+        // 🔍 البحث في عنوان الكورس (غير حساس لحالة الأحرف)
+        if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+        {
+            query = query.Where(c => c.Title != null && EF.Functions.Like(c.Title, $"%{filter.SearchTerm}%"));
+        }
+
         if (!string.IsNullOrEmpty(filter.Category))
             query = query.Where(c => c.Category == filter.Category);
         if (!string.IsNullOrEmpty(filter.Provider))

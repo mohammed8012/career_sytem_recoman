@@ -20,6 +20,12 @@ public class JobService : IJobService
         var query = _context.Jobs
             .Where(j => j.IsActive == true && (j.ExpiryDate == null || j.ExpiryDate > today));
 
+        // 🔍 البحث في عنوان الوظيفة (غير حساس لحالة الأحرف)
+        if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+        {
+            query = query.Where(j => j.JobTitle != null && EF.Functions.Like(j.JobTitle, $"%{filter.SearchTerm}%"));
+        }
+
         if (!string.IsNullOrEmpty(filter.JobCategory))
             query = query.Where(j => j.JobCategory == filter.JobCategory);
         if (!string.IsNullOrEmpty(filter.JobType))
